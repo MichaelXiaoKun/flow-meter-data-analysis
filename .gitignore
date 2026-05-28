@@ -1,0 +1,34 @@
+# macOS / editor noise
+.DS_Store
+*.swp
+
+# Python environments and caches
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environment / secrets
+.env
+.env.*
+
+# Runtime telemetry and generated logs
+*.log
+*.jsonl
+
+# Device-specific or large local data captures
+BB*.csv
+training_*.csv
+live_*.csv
+prototype/live_*.csv
+
+# LaTeX build artifacts
+*.aux
+*.fdb_latexmk
+*.fls
+*.out
+*.xdv
+*.synctex.gz

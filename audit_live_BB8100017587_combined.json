@@ -1,0 +1,927 @@
+{
+  "file": "live_BB8100017587.csv",
+  "model": "oneclass_meter_model_combined.json",
+  "cnn_model": "cnn_autoencoder_model.pt",
+  "rows": 141,
+  "sample_columns": 1024,
+  "time": {
+    "start": "2026-05-28T05:12:00+00:00",
+    "end": "2026-05-28T05:16:41+00:00",
+    "duration_s": 281.0,
+    "interval_s": {
+      "n": 140,
+      "min": 2.0,
+      "p05": 2.0,
+      "p50": 2.0,
+      "mean": 2.007142857142857,
+      "p95": 2.0,
+      "max": 3.0
+    }
+  },
+  "csv_labels": {
+    "good": 140,
+    "unknown": 1
+  },
+  "sq": {
+    "n": 140,
+    "min": 99.0,
+    "p05": 99.0,
+    "p50": 100.0,
+    "mean": 99.88571428571429,
+    "p95": 100.0,
+    "max": 100.0
+  },
+  "sq_age_ms": {
+    "n": 140,
+    "min": 560.0,
+    "p05": 915.8,
+    "p50": 1000.0,
+    "mean": 990.9,
+    "p95": 1046.1,
+    "max": 1134.0
+  },
+  "analyzer": {
+    "labels": {
+      "normal": 138,
+      "suspect": 3
+    },
+    "raw_states": {
+      "normal_acoustic_state": 136,
+      "weak_signal_or_air_candidate": 4,
+      "signal_quality_suspect": 1
+    },
+    "stable_states": {
+      "normal_acoustic_state": 141
+    },
+    "peak_modes": {
+      "peak_minus_100": 71,
+      "peak_plus_50": 70
+    },
+    "health_labels": {
+      "Healthy": 136,
+      "Watch": 5
+    },
+    "conditions": {
+      "normal": 141
+    },
+    "detection_events": {},
+    "state_confirmations": {
+      "stable": 135,
+      "pending": 5,
+      "initialized": 1
+    },
+    "raw_transitions": 8,
+    "stable_transitions": 0,
+    "mode_switches": 118,
+    "health_score": {
+      "n": 141,
+      "min": 66.4,
+      "p05": 76.3,
+      "p50": 80.7,
+      "mean": 81.50709219858156,
+      "p95": 87.8,
+      "max": 88.6
+    },
+    "pattern_score": {
+      "n": 141,
+      "min": 47.5,
+      "p05": 80.6,
+      "p50": 82.6,
+      "mean": 82.19007092198581,
+      "p95": 84.5,
+      "max": 85.1
+    }
+  },
+  "per_mode": {
+    "peak_minus_100": {
+      "noise_rms_v": {
+        "n": 71,
+        "min": 0.27883686987197365,
+        "p05": 0.2832291421385942,
+        "p50": 0.28711931317833705,
+        "mean": 0.287156200755604,
+        "p95": 0.2906887575606667,
+        "max": 0.2924038303442689
+      },
+      "gate_rms_v": {
+        "n": 71,
+        "min": 1.1793138895137285,
+        "p05": 1.1838826460974738,
+        "p50": 1.1869340756756452,
+        "mean": 1.1868437365721591,
+        "p95": 1.1895968277258473,
+        "max": 1.1932885233672526
+      },
+      "template_corr": {
+        "n": 71,
+        "min": 0.991997146714672,
+        "p05": 0.9927478802866737,
+        "p50": 0.9943462117647006,
+        "mean": 0.9942099472979726,
+        "p95": 0.9950582132260478,
+        "max": 0.9952413731675464
+      },
+      "snr_db": {
+        "n": 71,
+        "min": 12.18914994256566,
+        "p05": 12.205781721634292,
+        "p50": 12.324341492961207,
+        "mean": 12.325814378590717,
+        "p95": 12.453472472312612,
+        "max": 12.59278450401315
+      },
+      "low_clip_ratio": {
+        "n": 71,
+        "min": 0.068359375,
+        "p05": 0.0693359375,
+        "p50": 0.0712890625,
+        "mean": 0.07197678257042253,
+        "p95": 0.0751953125,
+        "max": 0.0771484375
+      },
+      "peak_offset_samples": {
+        "n": 71,
+        "min": -101.0,
+        "p05": -100.5,
+        "p50": -99.0,
+        "mean": -99.28169014084507,
+        "p95": -98.0,
+        "max": -98.0
+      },
+      "first_arrival_offset_samples": {
+        "n": 71,
+        "min": -102.0,
+        "p05": -101.0,
+        "p50": -99.0,
+        "mean": -99.43661971830986,
+        "p95": -98.5,
+        "max": -98.0
+      },
+      "score": {
+        "n": 71,
+        "min": 2.8213206164873967,
+        "p05": 2.8787289618541347,
+        "p50": 3.0580822738322824,
+        "mean": 3.0783586524982094,
+        "p95": 3.2852069561483668,
+        "max": 3.391511776193792
+      },
+      "health": {
+        "n": 71,
+        "min": 66.4,
+        "p05": 75.4,
+        "p50": 78.4,
+        "mean": 78.17464788732394,
+        "p95": 80.65,
+        "max": 81.4
+      }
+    },
+    "peak_plus_50": {
+      "noise_rms_v": {
+        "n": 70,
+        "min": 0.25629572762728603,
+        "p05": 0.257621302369037,
+        "p50": 0.2609477848433275,
+        "mean": 0.2610854948338402,
+        "p95": 0.2644038039486636,
+        "max": 0.2677452147098058
+      },
+      "gate_rms_v": {
+        "n": 70,
+        "min": 1.0884478627844325,
+        "p05": 1.0895297116968348,
+        "p50": 1.0931819934773213,
+        "mean": 1.0933198857905033,
+        "p95": 1.096714551020991,
+        "max": 1.1003976553955388
+      },
+      "template_corr": {
+        "n": 70,
+        "min": 0.993970341361404,
+        "p05": 0.9945130278374794,
+        "p50": 0.9965487398761748,
+        "mean": 0.9962719804564689,
+        "p95": 0.9970698435813996,
+        "max": 0.9971791564284641
+      },
+      "snr_db": {
+        "n": 70,
+        "min": 12.20365757180023,
+        "p05": 12.335243166277776,
+        "p50": 12.433226834275999,
+        "mean": 12.43957969163835,
+        "p95": 12.558263161931098,
+        "max": 12.586796505396237
+      },
+      "low_clip_ratio": {
+        "n": 70,
+        "min": 0.05078125,
+        "p05": 0.052734375,
+        "p50": 0.0546875,
+        "mean": 0.054450334821428574,
+        "p95": 0.056640625,
+        "max": 0.056640625
+      },
+      "peak_offset_samples": {
+        "n": 70,
+        "min": 49.0,
+        "p05": 49.0,
+        "p50": 50.0,
+        "mean": 49.92857142857143,
+        "p95": 51.0,
+        "max": 52.0
+      },
+      "first_arrival_offset_samples": {
+        "n": 70,
+        "min": -101.0,
+        "p05": -101.0,
+        "p50": -100.0,
+        "mean": -98.62857142857143,
+        "p95": -99.0,
+        "max": -1.0
+      },
+      "score": {
+        "n": 70,
+        "min": 1.9268800029195319,
+        "p05": 1.9782335585518933,
+        "p50": 2.0992610995920913,
+        "mean": 2.1128412556283216,
+        "p95": 2.272479645232284,
+        "max": 2.2929164022895905
+      },
+      "health": {
+        "n": 70,
+        "min": 74.4,
+        "p05": 82.035,
+        "p50": 85.0,
+        "mean": 84.88714285714286,
+        "p95": 88.3,
+        "max": 88.6
+      }
+    }
+  },
+  "cnn_by_mode": {
+    "peak_minus_100": {
+      "reconstruction_mse": {
+        "n": 71,
+        "min": 0.0019169836305081844,
+        "p05": 0.001953137689270079,
+        "p50": 0.002083330415189266,
+        "mean": 0.0020787304883796566,
+        "p95": 0.0021966707427054644,
+        "max": 0.002239331603050232
+      },
+      "nearest_embedding_distance": {
+        "n": 71,
+        "min": 5.600921714224453,
+        "p05": 5.7241347043715525,
+        "p50": 6.219065312759027,
+        "mean": 6.231338062148592,
+        "p95": 6.734151981532702,
+        "max": 6.988485863431036
+      },
+      "nearest_similarity": {
+        "n": 71,
+        "min": 0.12518016769331833,
+        "p05": 0.1293021611600088,
+        "p50": 0.1385220879263404,
+        "mean": 0.1385568726513563,
+        "p95": 0.1487181871706506,
+        "max": 0.15149399482273523
+      }
+    },
+    "peak_plus_50": {
+      "reconstruction_mse": {
+        "n": 70,
+        "min": 0.0012217877665534616,
+        "p05": 0.0012393349199555813,
+        "p50": 0.001312278676778078,
+        "mean": 0.001313079961775137,
+        "p95": 0.001374580943956971,
+        "max": 0.0014363417867571115
+      },
+      "nearest_embedding_distance": {
+        "n": 70,
+        "min": 1.4249656787559504,
+        "p05": 1.6543043795698082,
+        "p50": 2.20592899977416,
+        "mean": 2.194456607381391,
+        "p95": 2.808613585760014,
+        "max": 3.6265879346928216
+      },
+      "nearest_similarity": {
+        "n": 70,
+        "min": 0.216142006618187,
+        "p05": 0.2626202859428698,
+        "p50": 0.31192216693638364,
+        "mean": 0.31695502092752853,
+        "p95": 0.37674654423520204,
+        "max": 0.41237697042913096
+      }
+    }
+  },
+  "worst_by_score": [
+    {
+      "row": 2,
+      "timestamp": "2026-05-28T05:12:02.000Z",
+      "mode": "peak_minus_100",
+      "label": "suspect",
+      "raw_state": "weak_signal_or_air_candidate",
+      "stable_state": "normal_acoustic_state",
+      "health": 66.4,
+      "health_label": "Watch",
+      "score": 3.391511776193792,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.3590917280462405
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.819110252739478
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.3203125
+        }
+      ]
+    },
+    {
+      "row": 68,
+      "timestamp": "2026-05-28T05:14:14.000Z",
+      "mode": "peak_minus_100",
+      "label": "suspect",
+      "raw_state": "weak_signal_or_air_candidate",
+      "stable_state": "normal_acoustic_state",
+      "health": 70.2,
+      "health_label": "Watch",
+      "score": 3.3744435244560202,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.466062306114951
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.919666286343238
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.125
+        }
+      ]
+    },
+    {
+      "row": 64,
+      "timestamp": "2026-05-28T05:14:06.000Z",
+      "mode": "peak_minus_100",
+      "label": "suspect",
+      "raw_state": "signal_quality_suspect",
+      "stable_state": "normal_acoustic_state",
+      "health": 74.0,
+      "health_label": "Watch",
+      "score": 3.325778438768199,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.929234660533711
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.836210211646885
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 4.1015625
+        }
+      ]
+    },
+    {
+      "row": 57,
+      "timestamp": "2026-05-28T05:13:52.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.4,
+      "health_label": "Healthy",
+      "score": 3.286138920175145,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.015460807077778
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.903904034567952
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.3203125
+        }
+      ]
+    },
+    {
+      "row": 37,
+      "timestamp": "2026-05-28T05:13:12.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 77.2,
+      "health_label": "Healthy",
+      "score": 3.2842749921215884,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.886073434117512
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.8973351965128415
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.7109375
+        }
+      ]
+    },
+    {
+      "row": 80,
+      "timestamp": "2026-05-28T05:14:38.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 77.7,
+      "health_label": "Healthy",
+      "score": 3.277202431853195,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.929234660533711
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.84804576169272
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.7109375
+        }
+      ]
+    },
+    {
+      "row": 98,
+      "timestamp": "2026-05-28T05:15:14.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "weak_signal_or_air_candidate",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.5,
+      "health_label": "Healthy",
+      "score": 3.2658985971141505,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.294815185714165
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.763172146449801
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 2.734375
+        }
+      ]
+    },
+    {
+      "row": 119,
+      "timestamp": "2026-05-28T05:15:56.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.0,
+      "health_label": "Healthy",
+      "score": 3.2278627986664006,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.166049068416591
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.722336945520899
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 2.5390625
+        }
+      ]
+    },
+    {
+      "row": 60,
+      "timestamp": "2026-05-28T05:13:58.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.3,
+      "health_label": "Healthy",
+      "score": 3.2243391610162924,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.972363760977173
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.595700755714072
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.3203125
+        }
+      ]
+    },
+    {
+      "row": 136,
+      "timestamp": "2026-05-28T05:16:31.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.3,
+      "health_label": "Healthy",
+      "score": 3.221970350454331,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.886073434117512
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.790160637971508
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.125
+        }
+      ]
+    },
+    {
+      "row": 59,
+      "timestamp": "2026-05-28T05:13:56.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 77.2,
+      "health_label": "Healthy",
+      "score": 3.2074646864095677,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.799654315510206
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.8177946673296
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.3203125
+        }
+      ]
+    },
+    {
+      "row": 11,
+      "timestamp": "2026-05-28T05:12:20.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 77.4,
+      "health_label": "Healthy",
+      "score": 3.19964812589857,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.907658067559486
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.892079603551669
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 2.9296875
+        }
+      ]
+    }
+  ],
+  "worst_by_health": [
+    {
+      "row": 2,
+      "timestamp": "2026-05-28T05:12:02.000Z",
+      "mode": "peak_minus_100",
+      "label": "suspect",
+      "raw_state": "weak_signal_or_air_candidate",
+      "stable_state": "normal_acoustic_state",
+      "health": 66.4,
+      "health_label": "Watch",
+      "score": 3.391511776193792,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.3590917280462405
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.819110252739478
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.3203125
+        }
+      ]
+    },
+    {
+      "row": 68,
+      "timestamp": "2026-05-28T05:14:14.000Z",
+      "mode": "peak_minus_100",
+      "label": "suspect",
+      "raw_state": "weak_signal_or_air_candidate",
+      "stable_state": "normal_acoustic_state",
+      "health": 70.2,
+      "health_label": "Watch",
+      "score": 3.3744435244560202,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.466062306114951
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.919666286343238
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.125
+        }
+      ]
+    },
+    {
+      "row": 64,
+      "timestamp": "2026-05-28T05:14:06.000Z",
+      "mode": "peak_minus_100",
+      "label": "suspect",
+      "raw_state": "signal_quality_suspect",
+      "stable_state": "normal_acoustic_state",
+      "health": 74.0,
+      "health_label": "Watch",
+      "score": 3.325778438768199,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.929234660533711
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.836210211646885
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 4.1015625
+        }
+      ]
+    },
+    {
+      "row": 1,
+      "timestamp": "2026-05-28T05:12:00.000Z",
+      "mode": "peak_plus_50",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 74.4,
+      "health_label": "Watch",
+      "score": 2.2709596031454784,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 3.8847733801081694
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.515625
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 3.0858049657130238
+        }
+      ]
+    },
+    {
+      "row": 30,
+      "timestamp": "2026-05-28T05:12:58.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 74.8,
+      "health_label": "Watch",
+      "score": 3.184551881062606,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.669782886619502
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.650477756551152
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 2.9296875
+        }
+      ]
+    },
+    {
+      "row": 119,
+      "timestamp": "2026-05-28T05:15:56.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.0,
+      "health_label": "Healthy",
+      "score": 3.2278627986664006,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.166049068416591
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.722336945520899
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 2.5390625
+        }
+      ]
+    },
+    {
+      "row": 60,
+      "timestamp": "2026-05-28T05:13:58.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.3,
+      "health_label": "Healthy",
+      "score": 3.2243391610162924,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.972363760977173
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.595700755714072
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.3203125
+        }
+      ]
+    },
+    {
+      "row": 136,
+      "timestamp": "2026-05-28T05:16:31.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.3,
+      "health_label": "Healthy",
+      "score": 3.221970350454331,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.886073434117512
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.790160637971508
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.125
+        }
+      ]
+    },
+    {
+      "row": 57,
+      "timestamp": "2026-05-28T05:13:52.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.4,
+      "health_label": "Healthy",
+      "score": 3.286138920175145,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.015460807077778
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.903904034567952
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.3203125
+        }
+      ]
+    },
+    {
+      "row": 98,
+      "timestamp": "2026-05-28T05:15:14.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "weak_signal_or_air_candidate",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.5,
+      "health_label": "Healthy",
+      "score": 3.2658985971141505,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 7.294815185714165
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.763172146449801
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 2.734375
+        }
+      ]
+    },
+    {
+      "row": 140,
+      "timestamp": "2026-05-28T05:16:39.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 76.9,
+      "health_label": "Healthy",
+      "score": 3.0408109768558567,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.212911948559152
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.669604767525759
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 2.9296875
+        }
+      ]
+    },
+    {
+      "row": 28,
+      "timestamp": "2026-05-28T05:12:54.000Z",
+      "mode": "peak_minus_100",
+      "label": "normal",
+      "raw_state": "normal_acoustic_state",
+      "stable_state": "normal_acoustic_state",
+      "health": 77.1,
+      "health_label": "Healthy",
+      "score": 3.184856714405298,
+      "top_reasons": [
+        {
+          "feature": "noise_rms_v",
+          "z": 6.30021576088956
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.892736578076717
+        },
+        {
+          "feature": "low_clip_ratio",
+          "z": 3.7109375
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,496 @@
+\documentclass[UTF8,fontset=fandol]{ctexart}
+
+\usepackage[a4paper,margin=2.4cm]{geometry}
+\usepackage{amsmath,amssymb,bm}
+\usepackage{booktabs}
+\usepackage{hyperref}
+\usepackage{xcolor}
+
+\hypersetup{
+  colorlinks=true,
+  linkcolor=blue,
+  urlcolor=blue,
+  citecolor=blue
+}
+
+\title{1D CNN Autoencoder 与波形 Embedding 相似度分析报告}
+\author{Bluebot Mini Wave Dataset}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+\section{问题定义}
+
+当前数据集中，每一条超声 ADC 波形可以表示为一个长度为 $T$ 的一维序列：
+\[
+  \bm{x}_i = [x_i(0), x_i(1), \ldots, x_i(T-1)]^\top \in \mathbb{R}^{T},
+\]
+其中 $i$ 是波形编号，当前 CSV 中通常有 $T=1024$ 个采样点，即列
+\[
+  s_0, s_1, \ldots, s_{1023}.
+\]
+
+目标不是先训练一个监督分类器，而是先学习一个``正常波形流形''。对于任意新波形 $\bm{x}_i$，模型输出：
+\[
+  \begin{aligned}
+    &\text{embedding } \bm{e}_i \in \mathbb{R}^{d},\\
+    &\text{reconstruction error } r_i,\\
+    &\text{nearest-neighbor distance } d_i,\\
+    &\text{nearest-neighbor similarity } c_i.
+  \end{aligned}
+\]
+其中 $d$ 是 embedding 维度，当前实现默认 $d=64$。
+
+\section{预处理}
+
+\subsection{Baseline 去除}
+
+对每条波形，先使用前 $B$ 个采样点估计基线：
+\[
+  b_i = \operatorname{median}\{x_i(t) \mid 0 \le t < B\},
+\]
+当前实现默认 $B=160$。中心化后的波形为：
+\[
+  y_i(t) = x_i(t) - b_i.
+\]
+
+这样做的目的，是让模型更关注回波形状、噪声结构和局部振铃，而不是 ADC 的直流偏置。
+
+\subsection{Full 模式与 Gate 模式}
+
+当前脚本支持两种输入：
+
+\[
+  \bm{y}_i^{\text{full}}
+  =
+  [y_i(0), y_i(1), \ldots, y_i(T-1)]^\top,
+\]
+以及只截取回波窗口的 gate 模式：
+\[
+  \bm{y}_i^{\text{gate}}
+  =
+  [y_i(g_s), y_i(g_s+1), \ldots, y_i(g_e-1)]^\top.
+\]
+
+其中 $g_s,g_e$ 来自已有模板学习逻辑：先从训练集均值波形中找到主回波峰值，再在峰值前后取固定窗口。Full 模式保留更多全局信息；Gate 模式更聚焦于回波区。
+
+\subsection{鲁棒尺度归一化}
+
+只使用训练集中的正常样本估计全局幅度尺度：
+\[
+  a =
+  \max\left(
+    Q_p\left(\{|y_i(t)|: i \in \mathcal{G},\, t \in \mathcal{T}\}\right),
+    a_{\min}
+  \right),
+\]
+其中 $\mathcal{G}$ 是训练用 good 样本集合，$Q_p$ 是分位数，当前默认 $p=99$，$a_{\min}=0.05$。
+
+归一化后的 CNN 输入为：
+\[
+  z_i(t)
+  =
+  \operatorname{clip}
+  \left(
+    \frac{y_i(t)}{a},
+    -\gamma,
+    \gamma
+  \right),
+\]
+当前默认 $\gamma=6$。
+
+\section{1D CNN Autoencoder}
+
+\subsection{Encoder}
+
+CNN encoder 将一维波形压缩成低维 embedding：
+\[
+  \bm{e}_i = f_\theta(\bm{z}_i) \in \mathbb{R}^{d}.
+\]
+
+每一层 1D 卷积可写成：
+\[
+  h^{(\ell)}_{i,k}(t)
+  =
+  \sigma
+  \left(
+    \sum_{m}
+    \sum_{\tau=-q}^{q}
+    w^{(\ell)}_{k,m,\tau}
+    h^{(\ell-1)}_{i,m}(t-\tau)
+    +
+    \beta^{(\ell)}_k
+  \right),
+\]
+其中 $k$ 是输出通道，$m$ 是输入通道，$\sigma(\cdot)$ 是 ReLU：
+\[
+  \sigma(u) = \max(0,u).
+\]
+
+卷积层之后使用 max-pooling 下采样：
+\[
+  \tilde{h}^{(\ell)}_{i,k}(u)
+  =
+  \max_{t \in \{2u,2u+1\}}
+  h^{(\ell)}_{i,k}(t).
+\]
+
+当前实现使用三次 $2\times$ pooling，因此长度从 $T$ 变为：
+\[
+  T' = \frac{T}{8}.
+\]
+对于 $T=1024$，有 $T'=128$。
+
+最后展平并映射到 embedding：
+\[
+  \bm{e}_i
+  =
+  W_e \operatorname{vec}(\bm{h}_i^{(L)}) + \bm{b}_e.
+\]
+
+\subsection{Decoder}
+
+Decoder 从 embedding 重建原始归一化波形：
+\[
+  \hat{\bm{z}}_i = g_\phi(\bm{e}_i).
+\]
+
+当前实现用线性层恢复到卷积特征图尺寸，再通过上采样和 1D 卷积恢复长度：
+\[
+  \hat{\bm{z}}_i
+  =
+  g_\phi(f_\theta(\bm{z}_i)).
+\]
+
+\subsection{训练目标}
+
+训练目标是最小化重建均方误差：
+\[
+  \mathcal{L}(\theta,\phi)
+  =
+  \frac{1}{|\mathcal{G}|T}
+  \sum_{i \in \mathcal{G}}
+  \left\|
+    \bm{z}_i - g_\phi(f_\theta(\bm{z}_i))
+  \right\|_2^2
+  +
+  \lambda \|\theta,\phi\|_2^2.
+\]
+
+其中 $\lambda$ 对应实现中的 \texttt{weight\_decay}。
+
+\section{训练流程与数学推理}
+
+\subsection{训练集合}
+
+由于当前数据主要是 \texttt{good} 样本，训练集定义为：
+\[
+  \mathcal{D}_{train}
+  =
+  \{\bm{x}_i \mid \operatorname{label}_i=\text{good},\; i \in \mathcal{I}_{train}\}.
+\]
+其中 $\mathcal{I}_{train}$ 由 \texttt{train\_fraction} 和 \texttt{split\_mode} 决定。当前默认
+\[
+  \texttt{train\_fraction}=0.70,
+  \qquad
+  \texttt{split\_mode}=\text{interleaved}.
+\]
+如果使用 \texttt{temporal} split，则前段时间样本用于训练，后段时间样本用于验证，更适合观察时间漂移。
+
+\subsection{训练算法}
+
+训练时，每个 batch 的输入张量为：
+\[
+  \bm{Z}_{batch} \in \mathbb{R}^{N_b \times 1 \times T},
+\]
+其中 $N_b$ 是 batch size。对每个 batch：
+\[
+  \bm{E}_{batch}=f_\theta(\bm{Z}_{batch}),
+  \qquad
+  \hat{\bm{Z}}_{batch}=g_\phi(\bm{E}_{batch}).
+\]
+batch loss 为：
+\[
+  \mathcal{L}_{batch}
+  =
+  \frac{1}{N_bT}
+  \left\|
+    \bm{Z}_{batch}-\hat{\bm{Z}}_{batch}
+  \right\|_F^2.
+\]
+参数通过 AdamW 更新：
+\[
+  (\theta,\phi)
+  \leftarrow
+  \operatorname{AdamW}
+  \left(
+    \nabla_{\theta,\phi}\mathcal{L}_{batch},
+    \eta,
+    \lambda
+  \right),
+\]
+其中 $\eta$ 是 learning rate，$\lambda$ 是 weight decay。
+
+每个 epoch 后，在 validation split 上计算：
+\[
+  \mathcal{L}_{val}
+  =
+  \frac{1}{|\mathcal{V}|T}
+  \sum_{i \in \mathcal{V}}
+  \left\|
+    \bm{z}_i -
+    g_\phi(f_\theta(\bm{z}_i))
+  \right\|_2^2.
+\]
+最终保留 $\mathcal{L}_{val}$ 最低的模型参数；如果 validation 集为空，则退化为选择 train loss 最低的参数。
+
+\subsection{为什么重建误差有意义}
+
+可以把健康波形看作集中在一个低维正常流形 $\mathcal{M}$ 附近。Autoencoder 学到的复合映射可近似理解为：
+\[
+  g_\phi(f_\theta(\bm{z}))
+  \approx
+  P_{\mathcal{M}}(\bm{z}),
+\]
+其中 $P_{\mathcal{M}}$ 是到正常波形流形的近似投影。因此：
+\[
+  \bm{z}_i \in \mathcal{M}
+  \Rightarrow
+  \left\|\bm{z}_i-\hat{\bm{z}}_i\right\|_2^2
+  \text{ 较小},
+\]
+\[
+  \bm{z}_i \notin \mathcal{M}
+  \Rightarrow
+  \left\|\bm{z}_i-\hat{\bm{z}}_i\right\|_2^2
+  \text{ 可能升高}.
+\]
+这就是 reconstruction MSE 可以作为异常分数的原因。
+
+\subsection{为什么 Embedding 最近邻有意义}
+
+重建误差衡量模型能否重画波形；embedding 距离则衡量该波形在压缩表征空间里是否落在历史 healthy cloud 中。对任意新样本，若
+\[
+  d_i =
+  \min_{j \in \mathcal{G}}
+  \left\|
+    \tilde{\bm{e}}_i-\tilde{\bm{e}}_j
+  \right\|_2
+\]
+很大，则说明该波形虽然可能被 decoder 重建，但其压缩模式已经远离已知健康样本。因此当前系统同时使用 $r_i$ 和 $d_i$，形成互补判断。
+
+\section{异常分数}
+
+\subsection{重建误差}
+
+对任意样本 $i$，定义重建误差：
+\[
+  r_i
+  =
+  \frac{1}{T}
+  \sum_{t=0}^{T-1}
+  \left(z_i(t)-\hat{z}_i(t)\right)^2.
+\]
+
+直觉上，如果一条波形不像训练集中学到的正常波形，autoencoder 就更难重建它，因此 $r_i$ 会升高。
+
+当前实现使用训练集重建误差的高分位数作为阈值：
+\[
+  \tau^{r}_{\text{suspect}} = Q_{99.5}\left(\{r_i:i\in\mathcal{G}\}\right),
+\]
+\[
+  \tau^{r}_{\text{anomaly}} = Q_{99.9}\left(\{r_i:i\in\mathcal{G}\}\right).
+\]
+
+\subsection{Embedding 距离与相似度}
+
+Autoencoder 输出的 embedding 每一维尺度不一定一致，因此先在训练集上做鲁棒标准化。对第 $k$ 维：
+\[
+  \mu_k = \operatorname{median}\{e_{i,k}: i\in\mathcal{G}\},
+\]
+\[
+  \sigma_k
+  =
+  \max\left(
+    1.4826\cdot
+    \operatorname{median}\{|e_{i,k}-\mu_k|: i\in\mathcal{G}\},
+    \epsilon
+  \right).
+\]
+
+标准化后的 embedding 为：
+\[
+  \tilde{e}_{i,k}
+  =
+  \frac{e_{i,k}-\mu_k}{\sigma_k}.
+\]
+
+对样本 $i$，在训练集 good 样本中寻找最近邻距离：
+\[
+  d_i
+  =
+  \min_{j \in \mathcal{G},\, j \ne i}
+  \left\|
+    \tilde{\bm{e}}_i-\tilde{\bm{e}}_j
+  \right\|_2.
+\]
+
+$d_i$ 越高，说明该样本在 learned embedding 空间里越不像历史正常波形。
+
+为了更直观地输出一个 $[0,1]$ 形式的相似度，当前实现还定义：
+\[
+  c_i = \frac{1}{1+d_i}.
+\]
+
+此外，脚本也会输出两个原始 embedding 的余弦相似度作为辅助参考：
+\[
+  \operatorname{cos}(\bm{e}_i,\bm{e}_j)
+  =
+  \frac{
+    \bm{e}_i^\top \bm{e}_j
+  }{
+    \|\bm{e}_i\|_2 \|\bm{e}_j\|_2
+  }.
+\]
+
+当前实现的主判定使用最近邻距离的高分位数作为阈值：
+\[
+  \tau^{d}_{\text{suspect}} = Q_{95}\left(\{d_i:i\in\mathcal{G}\}\right),
+\]
+\[
+  \tau^{d}_{\text{anomaly}} = Q_{99}\left(\{d_i:i\in\mathcal{G}\}\right).
+\]
+
+\section{判定规则}
+
+综合重建误差和相似度，当前规则为：
+\[
+  \operatorname{state}_i =
+  \begin{cases}
+    \text{anomaly},
+    &
+    r_i \ge \tau^{r}_{\text{anomaly}}
+    \;\text{or}\;
+    d_i \ge \tau^{d}_{\text{anomaly}},
+    \\[6pt]
+    \text{suspect},
+    &
+    r_i \ge \tau^{r}_{\text{suspect}}
+    \;\text{or}\;
+    d_i \ge \tau^{d}_{\text{suspect}},
+    \\[6pt]
+    \text{normal},
+    &
+    \text{otherwise}.
+  \end{cases}
+\]
+
+这两个分数的含义不同：
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+指标 & 数学定义 & 物理直觉 \\
+\midrule
+$r_i$ & 重建 MSE & 波形是否难以被正常模型重画 \\
+$d_i$ & 标准化 embedding 最近邻距离 & 是否远离历史正常波形 \\
+$c_i$ & $1/(1+d_i)$ & 便于阅读的相似度分数 \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{为什么先用 Autoencoder}
+
+当前数据主要是 good 样本，所以监督分类器缺少负样本。Autoencoder 的优势是只需要正常样本：
+\[
+  \mathcal{D}_{train} = \{\bm{x}_i: \operatorname{label}_i=\text{good}\}.
+\]
+
+它学习的是正常波形的压缩表示：
+\[
+  \bm{x}_i
+  \longrightarrow
+  \bm{z}_i
+  \longrightarrow
+  \bm{e}_i
+  \longrightarrow
+  \hat{\bm{z}}_i.
+\]
+
+当未来出现 weak signal、air、empty pipe、high noise、clipping 等状态时，理想情况下这些波形会表现为：
+\[
+  r_i \uparrow
+  \quad\text{或}\quad
+  c_i \downarrow.
+\]
+
+\section{与手写特征模型的关系}
+
+已有 one-class 模型使用人工设计的物理特征：
+\[
+  \bm{u}_i =
+  [
+    \text{baseline},
+    \text{noise\_rms},
+    \text{gate\_rms},
+    \text{snr},
+    \text{template\_corr},
+    \ldots
+  ].
+\]
+
+CNN embedding 则是数据驱动特征：
+\[
+  \bm{e}_i = f_\theta(\bm{z}_i).
+\]
+
+两者可以互补：
+
+\begin{itemize}
+  \item 手写特征更可解释，适合说明异常原因。
+  \item CNN embedding 更灵活，适合捕捉局部形状、振铃模式和复杂波形相似性。
+  \item 如果两者同时报警，异常可信度更高。
+\end{itemize}
+
+\section{实验建议}
+
+建议至少比较两组实验：
+
+\[
+  \text{Full input: } T=1024,
+  \qquad
+  \text{Gate input: } T=g_e-g_s.
+\]
+
+如果 full 模式对噪声、基线漂移、非回波区域过于敏感，可以切换 gate 模式。如果 gate 模式漏掉前段噪声、削顶或全局异常，则保留 full 模式。
+
+未来采集到明确标签后，可以进一步训练监督模型：
+\[
+  p_\psi(y_i \mid \bm{e}_i),
+  \quad
+  y_i \in \{\text{normal}, \text{weak}, \text{air}, \text{empty}, \text{noise}\}.
+\]
+
+此时 autoencoder 的 embedding 可以作为分类器输入，也可以作为预训练 encoder。
+
+\section{局限性}
+
+\begin{itemize}
+  \item 如果训练集只有 good，模型只能判断``不像 good''，不能天然区分具体异常类型。
+  \item 阈值是从当前训练集分布估计出来的，设备更换、安装方式变化、温度变化都可能导致阈值需要重估。
+  \item 如果训练集中混入异常样本，autoencoder 可能把异常也学成正常，因此训练集应优先使用高 SQ、人工确认的 good 数据。
+  \item Embedding 相似度依赖训练集覆盖度。如果正常状态本身有多种子模式，需要足够多样的 good 样本。
+\end{itemize}
+
+\section{输出解释}
+
+脚本输出三类文件：
+
+\begin{itemize}
+  \item \texttt{cnn\_autoencoder\_model.pt}: PyTorch checkpoint，包含模型参数、预处理参数和阈值。
+  \item \texttt{cnn\_embedding\_report.json}: 全局报告，包括训练历史、分位数阈值、top outliers。
+  \item \texttt{cnn\_embedding\_analysis.jsonl}: 每行一个样本，包含 embedding、重建误差、最近邻和最终 \texttt{cnn\_state}。
+\end{itemize}
+
+\end{document}

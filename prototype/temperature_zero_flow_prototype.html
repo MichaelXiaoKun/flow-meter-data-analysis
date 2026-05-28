@@ -1,0 +1,3289 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Temperature Zero Flow Prototype</title>
+  <style>
+    :root {
+      --bg: #f4f6f8;
+      --panel: #ffffff;
+      --panel-2: #eef2f5;
+      --text: #14202b;
+      --muted: #5d6b7a;
+      --line: #d7dee6;
+      --blue: #2563eb;
+      --teal: #0f766e;
+      --green: #15803d;
+      --amber: #b45309;
+      --red: #b91c1c;
+      --ink: #0f172a;
+      --shadow: 0 10px 28px rgba(15, 23, 42, 0.08);
+      --radius: 8px;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: var(--bg);
+    }
+
+    button,
+    input,
+    select {
+      font: inherit;
+    }
+
+    button {
+      border: 1px solid var(--line);
+      background: #fff;
+      color: var(--text);
+      border-radius: 6px;
+      min-height: 36px;
+      padding: 0 12px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      border-color: #aab7c4;
+      background: #f9fbfc;
+    }
+
+    button.primary {
+      background: var(--ink);
+      border-color: var(--ink);
+      color: #fff;
+    }
+
+    button.icon {
+      width: 36px;
+      padding: 0;
+      display: inline-grid;
+      place-items: center;
+      font-weight: 700;
+    }
+
+    button.confirm-zero {
+      border-color: rgba(15, 118, 110, 0.35);
+      color: var(--teal);
+    }
+
+    button.confirm-event {
+      border-color: rgba(37, 99, 235, 0.35);
+      color: var(--blue);
+    }
+
+    button.confirm-unsure {
+      border-color: rgba(180, 83, 9, 0.35);
+      color: var(--amber);
+    }
+
+    .app {
+      min-height: 100vh;
+      display: grid;
+      grid-template-rows: auto 1fr;
+    }
+
+    header {
+      background: #fff;
+      border-bottom: 1px solid var(--line);
+      padding: 14px 18px;
+      display: grid;
+      grid-template-columns: minmax(260px, 1fr) auto;
+      align-items: center;
+      gap: 16px;
+      position: sticky;
+      top: 0;
+      z-index: 5;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      line-height: 1.2;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin-top: 4px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    .header-actions {
+      display: flex;
+      gap: 8px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+    }
+
+    .serial-input {
+      width: 150px;
+      min-height: 36px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 0 10px;
+      color: var(--text);
+      background: #fff;
+    }
+
+    .file-button {
+      position: relative;
+      overflow: hidden;
+    }
+
+    .file-button input {
+      position: absolute;
+      inset: 0;
+      opacity: 0;
+      cursor: pointer;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 360px;
+      gap: 16px;
+      padding: 16px;
+    }
+
+    section,
+    aside {
+      min-width: 0;
+    }
+
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+    }
+
+    .panel-header {
+      padding: 14px 14px 10px;
+      border-bottom: 1px solid var(--line);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .panel-title {
+      margin: 0;
+      font-size: 14px;
+      line-height: 1.25;
+      font-weight: 700;
+    }
+
+    .panel-body {
+      padding: 14px;
+    }
+
+    .stack {
+      display: grid;
+      gap: 16px;
+    }
+
+    .control-group {
+      display: grid;
+      gap: 10px;
+      padding-bottom: 14px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .control-group:last-child {
+      border-bottom: 0;
+      padding-bottom: 0;
+    }
+
+    .advanced-panel {
+      margin: 0 16px;
+    }
+
+    .advanced-panel summary {
+      list-style: none;
+      cursor: pointer;
+      padding: 12px 14px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      font-size: 13px;
+      font-weight: 700;
+      color: var(--text);
+    }
+
+    .advanced-panel summary::-webkit-details-marker {
+      display: none;
+    }
+
+    .advanced-panel summary::after {
+      content: "+";
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      display: inline-grid;
+      place-items: center;
+      background: #e2e8f0;
+      color: var(--muted);
+    }
+
+    .advanced-panel[open] summary::after {
+      content: "-";
+    }
+
+    .advanced-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(180px, 1fr));
+      gap: 14px;
+    }
+
+    .control-row {
+      display: grid;
+      gap: 6px;
+    }
+
+    .label-line {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 8px;
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .label-line strong {
+      color: var(--text);
+      font-size: 13px;
+      font-weight: 650;
+    }
+
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--teal);
+    }
+
+    .segmented {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      background: var(--panel-2);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 3px;
+      gap: 3px;
+    }
+
+    .segmented button {
+      min-height: 32px;
+      border: 0;
+      background: transparent;
+      padding: 0 6px;
+      color: var(--muted);
+    }
+
+    .segmented button.active {
+      background: #fff;
+      color: var(--text);
+      box-shadow: 0 1px 4px rgba(15, 23, 42, 0.12);
+    }
+
+    .toggle-row {
+      display: grid;
+      grid-template-columns: 1fr auto;
+      align-items: center;
+      gap: 10px;
+      font-size: 13px;
+    }
+
+    .switch {
+      position: relative;
+      width: 42px;
+      height: 24px;
+    }
+
+    .switch input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .slider-knob {
+      position: absolute;
+      inset: 0;
+      border-radius: 999px;
+      border: 1px solid #a8b4c1;
+      background: #dbe3ea;
+      transition: 0.16s ease;
+    }
+
+    .slider-knob:before {
+      content: "";
+      position: absolute;
+      width: 18px;
+      height: 18px;
+      left: 2px;
+      top: 2px;
+      border-radius: 50%;
+      background: #fff;
+      box-shadow: 0 1px 3px rgba(0, 0, 0, 0.25);
+      transition: 0.16s ease;
+    }
+
+    .switch input:checked + .slider-knob {
+      background: #99f6e4;
+      border-color: #14b8a6;
+    }
+
+    .switch input:checked + .slider-knob:before {
+      transform: translateX(18px);
+    }
+
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(112px, 1fr));
+      gap: 10px;
+    }
+
+    .kpi {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 82px;
+      display: grid;
+      align-content: space-between;
+    }
+
+    .kpi span {
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .kpi strong {
+      font-size: 21px;
+      line-height: 1.1;
+      letter-spacing: 0;
+    }
+
+    .kpi small {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.25;
+    }
+
+    .status-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      border-radius: 999px;
+      padding: 5px 9px;
+      font-size: 12px;
+      font-weight: 650;
+      white-space: nowrap;
+      background: #e0f2fe;
+      color: #075985;
+    }
+
+    .status-pill.green {
+      background: #dcfce7;
+      color: #166534;
+    }
+
+    .status-pill.amber {
+      background: #fef3c7;
+      color: #92400e;
+    }
+
+    .status-pill.red {
+      background: #fee2e2;
+      color: #991b1b;
+    }
+
+    .chart-panel {
+      background: #fff;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .chart-title {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 12px;
+      border-bottom: 1px solid var(--line);
+      font-size: 13px;
+      font-weight: 700;
+    }
+
+    .legend {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      font-size: 11px;
+      color: var(--muted);
+      font-weight: 500;
+    }
+
+    .legend i {
+      display: inline-block;
+      width: 16px;
+      height: 3px;
+      border-radius: 999px;
+      margin-right: 4px;
+      vertical-align: middle;
+    }
+
+    canvas {
+      width: 100%;
+      height: 235px;
+      display: block;
+      background: #fff;
+      cursor: crosshair;
+    }
+
+    .compact-canvas {
+      height: 180px;
+    }
+
+    .waveform-canvas {
+      height: 260px;
+    }
+
+    .waveform-stats {
+      display: grid;
+      grid-template-columns: repeat(6, minmax(0, 1fr));
+      gap: 8px;
+      padding: 10px 12px;
+      border-top: 1px solid var(--line);
+      background: #f8fafc;
+    }
+
+    .waveform-stat {
+      display: grid;
+      gap: 3px;
+      min-width: 0;
+    }
+
+    .waveform-stat span {
+      color: var(--muted);
+      font-size: 11px;
+    }
+
+    .waveform-stat strong {
+      color: var(--text);
+      font-size: 13px;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .timeline-tools {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      padding: 10px 12px;
+      border-top: 1px solid var(--line);
+      color: var(--muted);
+      font-size: 12px;
+    }
+
+    .event-list {
+      display: grid;
+      gap: 10px;
+      max-height: calc(100vh - 274px);
+      overflow: auto;
+      padding-right: 4px;
+    }
+
+    .event {
+      border: 1px solid var(--line);
+      border-left-width: 4px;
+      border-radius: 8px;
+      background: #fff;
+      padding: 10px;
+      display: grid;
+      gap: 8px;
+    }
+
+    .event[data-severity="info"] {
+      border-left-color: var(--blue);
+    }
+
+    .event[data-severity="watch"] {
+      border-left-color: var(--amber);
+    }
+
+    .event[data-severity="critical"] {
+      border-left-color: var(--red);
+    }
+
+    .event-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: start;
+    }
+
+    .event-title {
+      font-size: 13px;
+      font-weight: 700;
+      line-height: 1.3;
+    }
+
+    .event-time {
+      color: var(--muted);
+      font-size: 11px;
+      white-space: nowrap;
+    }
+
+    .event-message {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
+    }
+
+    .event-actions {
+      display: grid;
+      grid-template-columns: 1fr 1fr 40px;
+      gap: 6px;
+    }
+
+    .event-actions button {
+      min-height: 32px;
+      padding: 0 8px;
+      font-size: 12px;
+    }
+
+    .table-wrap {
+      overflow: auto;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      background: #fff;
+      max-height: 250px;
+    }
+
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 1240px;
+      font-size: 12px;
+    }
+
+    th,
+    td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--line);
+      text-align: right;
+      white-space: nowrap;
+    }
+
+    th:first-child,
+    td:first-child,
+    th:nth-child(2),
+    td:nth-child(2),
+    th:nth-child(3),
+    td:nth-child(3) {
+      text-align: left;
+    }
+
+    th {
+      color: var(--muted);
+      background: #f8fafc;
+      position: sticky;
+      top: 0;
+      z-index: 1;
+      font-weight: 650;
+    }
+
+    tr.selected {
+      background: #ecfeff;
+    }
+
+    .state-cell {
+      font-weight: 700;
+    }
+
+    .state-zero {
+      color: var(--teal);
+    }
+
+    .state-event {
+      color: var(--blue);
+    }
+
+    .state-phantom {
+      color: var(--red);
+    }
+
+    .state-review {
+      color: var(--amber);
+    }
+
+    .state-gap {
+      color: var(--red);
+    }
+
+    .notice-draft {
+      display: grid;
+      gap: 10px;
+    }
+
+    .training-grid {
+      display: grid;
+      grid-template-columns: minmax(96px, 1fr) minmax(0, 1.25fr);
+      gap: 8px 12px;
+      align-items: baseline;
+      font-size: 12px;
+    }
+
+    .training-grid span {
+      color: var(--muted);
+    }
+
+    .training-grid strong {
+      min-width: 0;
+      overflow-wrap: anywhere;
+      color: var(--text);
+      font-size: 13px;
+    }
+
+    textarea {
+      width: 100%;
+      min-height: 128px;
+      resize: vertical;
+      border: 1px solid var(--line);
+      border-radius: var(--radius);
+      padding: 10px;
+      color: var(--text);
+      background: #fff;
+      line-height: 1.5;
+      font: inherit;
+      font-size: 13px;
+    }
+
+    .empty {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.5;
+      padding: 10px 0;
+    }
+
+    .toast {
+      position: fixed;
+      right: 18px;
+      bottom: 18px;
+      background: #0f172a;
+      color: #fff;
+      padding: 10px 12px;
+      border-radius: 8px;
+      box-shadow: var(--shadow);
+      transform: translateY(20px);
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.18s ease;
+      font-size: 13px;
+      z-index: 20;
+      max-width: 360px;
+    }
+
+    .toast.show {
+      transform: translateY(0);
+      opacity: 1;
+    }
+
+    .chart-tooltip {
+      position: fixed;
+      z-index: 30;
+      min-width: 190px;
+      max-width: 300px;
+      padding: 9px 10px;
+      border-radius: 8px;
+      background: rgba(15, 23, 42, 0.94);
+      color: #fff;
+      box-shadow: var(--shadow);
+      font-size: 12px;
+      line-height: 1.45;
+      pointer-events: none;
+      opacity: 0;
+      transform: translate(10px, 10px);
+      transition: opacity 0.08s ease;
+    }
+
+    .chart-tooltip.show {
+      opacity: 1;
+    }
+
+    .chart-tooltip strong {
+      display: block;
+      margin-bottom: 3px;
+      font-size: 12px;
+    }
+
+    @media (max-width: 1180px) {
+      main {
+        grid-template-columns: 1fr;
+      }
+
+      .right-rail {
+        grid-column: 1 / -1;
+      }
+
+      .advanced-grid {
+        grid-template-columns: repeat(2, minmax(180px, 1fr));
+      }
+
+      .event-list {
+        max-height: 360px;
+      }
+    }
+
+    @media (max-width: 760px) {
+      header {
+        grid-template-columns: 1fr;
+        align-items: start;
+      }
+
+      .header-actions {
+        justify-content: start;
+      }
+
+      main {
+        grid-template-columns: 1fr;
+        padding: 10px;
+      }
+
+      .kpi-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      canvas {
+        height: 210px;
+      }
+
+      .event-actions {
+        grid-template-columns: 1fr;
+      }
+
+      .event-actions button.icon {
+        width: 100%;
+      }
+
+      .waveform-stats {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .advanced-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="app">
+    <header>
+      <div>
+        <h1>温度零点追踪实验台</h1>
+        <div class="subtitle">本地测试 phantom flow、温度漂移、用户确认标签和客户通知文案</div>
+      </div>
+      <div class="header-actions">
+        <input id="serialInput" class="serial-input" value="BB8100017587" aria-label="serial">
+        <button id="liveBtn">连接实时</button>
+        <button id="stopLiveBtn">断开</button>
+        <button id="clearDataBtn">清理数据</button>
+        <span id="runStatus" class="status-pill green">Ready</span>
+        <button id="langToggle" title="Switch language">EN</button>
+        <button id="resetLabelsBtn" title="清空本地用户确认标签" class="icon">R</button>
+        <button id="demoBtn" class="primary">生成模拟数据</button>
+        <label class="file-button">
+          <button>导入 CSV</button>
+          <input id="csvInput" type="file" accept=".csv,text/csv">
+        </label>
+        <button id="exportBtn">导出标签</button>
+      </div>
+    </header>
+
+    <details class="panel advanced-panel">
+      <summary>高级参数</summary>
+      <div class="panel-body advanced-grid">
+          <div class="control-group">
+            <div class="label-line"><strong>测试场景</strong><span id="scenarioName">混合</span></div>
+            <div class="segmented" id="scenarioTabs">
+              <button data-scenario="heating">升温</button>
+              <button data-scenario="cooling">降温</button>
+              <button data-scenario="mixed" class="active">混合</button>
+            </div>
+          </div>
+
+          <div class="control-group">
+            <div class="control-row">
+              <div class="label-line"><strong>FR deadband</strong><span><output id="deadbandOut">0.030</output> m3/h</span></div>
+              <input id="deadband" type="range" min="0.005" max="0.250" step="0.005" value="0.030">
+            </div>
+            <div class="control-row">
+              <div class="label-line"><strong>PD 外径</strong><span><output id="outerDiameterOut">26.67</output> mm</span></div>
+              <input id="pipeOuterDiameter" type="range" min="10" max="80" step="0.01" value="26.67">
+            </div>
+            <div class="control-row">
+              <div class="label-line"><strong>PT 壁厚</strong><span><output id="wallThicknessOut">2.87</output> mm</span></div>
+              <input id="pipeWallThickness" type="range" min="0" max="10" step="0.01" value="2.87">
+            </div>
+            <div class="control-row">
+              <div class="label-line"><strong>内径</strong><span><output id="innerDiameterOut">20.93</output> mm</span></div>
+            </div>
+            <div class="control-row">
+              <div class="label-line"><strong>FS 温度灵敏度</strong><span><output id="tempCoeffOut">0.0020</output> m/s/C</span></div>
+              <input id="tempCoeff" type="range" min="0.0000" max="0.0060" step="0.0002" value="0.0020">
+            </div>
+            <div class="control-row">
+              <div class="label-line"><strong>追踪速度</strong><span><output id="trackerAlphaOut">0.045</output></span></div>
+              <input id="trackerAlpha" type="range" min="0.005" max="0.120" step="0.005" value="0.045">
+            </div>
+            <div class="control-row">
+              <div class="label-line"><strong>通知阈值</strong><span><output id="alertOut">70</output>%</span></div>
+              <input id="alertThreshold" type="range" min="45" max="95" step="5" value="70">
+            </div>
+          </div>
+
+          <div class="control-group">
+            <label class="toggle-row">
+              <span>抑制高置信 phantom</span>
+              <span class="switch">
+                <input id="suppressToggle" type="checkbox" checked>
+                <span class="slider-knob"></span>
+              </span>
+            </label>
+            <label class="toggle-row">
+              <span>用户确认参与学习</span>
+              <span class="switch">
+                <input id="feedbackToggle" type="checkbox" checked>
+                <span class="slider-knob"></span>
+              </span>
+            </label>
+            <label class="toggle-row">
+              <span>降温单独建模</span>
+              <span class="switch">
+                <input id="coolingToggle" type="checkbox" checked>
+                <span class="slider-knob"></span>
+              </span>
+            </label>
+          </div>
+
+          <div class="control-group">
+            <button id="recomputeBtn" class="primary">重新计算</button>
+          </div>
+      </div>
+    </details>
+
+    <main>
+      <section class="stack">
+        <div class="kpi-grid">
+          <div class="kpi">
+            <span>当前温度</span>
+            <strong id="kpiTemp">--</strong>
+          </div>
+          <div class="kpi">
+            <span>Raw flow</span>
+            <strong id="kpiRaw">--</strong>
+            <small id="kpiRawM3h">--</small>
+          </div>
+          <div class="kpi">
+            <span>Corrected flow</span>
+            <strong id="kpiCorrected">--</strong>
+            <small id="kpiCorrectedM3h">--</small>
+          </div>
+          <div class="kpi">
+            <span>用户看到</span>
+            <strong id="kpiPublished">--</strong>
+            <small id="kpiPublishedM3h">--</small>
+          </div>
+          <div class="kpi">
+            <span>Phantom risk</span>
+            <strong id="kpiRisk">--</strong>
+          </div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="chart-title">
+            <span>温度与热漂移</span>
+            <span class="legend">
+              <span><i style="background:#2563eb"></i>temperature</span>
+              <span><i style="background:#b45309"></i>dT/dt</span>
+            </span>
+          </div>
+          <canvas id="tempChart" width="960" height="280"></canvas>
+        </div>
+
+        <div class="chart-panel">
+          <div class="chart-title">
+            <span>流量、零点与抑制结果</span>
+            <span class="legend">
+              <span><i style="background:#64748b"></i>raw</span>
+              <span><i style="background:#0f766e"></i>zero estimate</span>
+              <span><i style="background:#2563eb"></i>corrected</span>
+              <span><i style="background:#b91c1c"></i>published</span>
+            </span>
+          </div>
+          <canvas id="flowChart" width="960" height="280"></canvas>
+          <div class="timeline-tools">
+            <span id="selectionLabel">选择一行或一个事件查看通知草稿</span>
+            <span id="sampleCount">0 samples</span>
+          </div>
+        </div>
+
+        <div class="chart-panel">
+          <div class="chart-title">
+            <span>用户看到 GPM</span>
+            <span class="legend">
+              <span><i style="background:#b91c1c"></i>displayed GPM</span>
+            </span>
+          </div>
+          <canvas id="displayChart" class="compact-canvas" width="960" height="220"></canvas>
+        </div>
+
+        <div class="chart-panel">
+          <div class="chart-title">
+            <span>判定概率</span>
+            <span class="legend">
+              <span><i style="background:#b91c1c"></i>phantom</span>
+              <span><i style="background:#2563eb"></i>event</span>
+              <span><i style="background:#0f766e"></i>zero</span>
+            </span>
+          </div>
+          <canvas id="probChart" class="compact-canvas" width="960" height="220"></canvas>
+        </div>
+
+        <div class="chart-panel">
+          <div class="chart-title">
+            <span>波形证据</span>
+            <span id="waveformMeta" class="legend">等待选择样本</span>
+          </div>
+          <canvas id="waveformChart" class="waveform-canvas" width="960" height="300"></canvas>
+          <div id="waveformStats" class="waveform-stats"></div>
+        </div>
+
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Time</th>
+                <th>State</th>
+                <th>Quality</th>
+                <th>Temp</th>
+                <th>dT/dt</th>
+                <th>OTS C</th>
+                <th>dt ns</th>
+                <th>tt ns</th>
+                <th>FS raw</th>
+                <th>FR raw</th>
+                <th>GPM raw</th>
+                <th>FS zero</th>
+                <th>FR corrected</th>
+                <th>GPM corrected</th>
+                <th>FR published</th>
+                <th>GPM displayed</th>
+                <th>Phantom</th>
+                <th>Event</th>
+                <th>Template</th>
+              </tr>
+            </thead>
+            <tbody id="auditRows"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <aside class="right-rail stack">
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">通知队列</h2>
+            <span id="eventCount" class="status-pill">0</span>
+          </div>
+          <div class="panel-body">
+            <div id="eventList" class="event-list"></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">客户通知草稿</h2>
+            <button id="copyNoticeBtn" class="icon" title="复制通知草稿">C</button>
+          </div>
+          <div class="panel-body notice-draft">
+            <textarea id="noticeText" spellcheck="false"></textarea>
+            <button id="markSentBtn">标记为已通知</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <h2 class="panel-title">训练状态</h2>
+            <span id="trainingStatus" class="status-pill">Idle</span>
+          </div>
+          <div class="panel-body">
+            <div class="training-grid">
+              <span>updates</span><strong id="trainUpdates">--</strong>
+              <span>stable ratio</span><strong id="trainStable">--</strong>
+              <span>freeze reason</span><strong id="trainFreeze">--</strong>
+              <span>data quality</span><strong id="dataQuality">local demo</strong>
+              <span>last sample age</span><strong id="lastSampleAge">--</strong>
+              <span>live source</span><strong id="liveSource">local demo</strong>
+            </div>
+          </div>
+        </div>
+      </aside>
+    </main>
+  </div>
+
+  <div id="toast" class="toast"></div>
+  <div id="chartTooltip" class="chart-tooltip"></div>
+
+  <script>
+    const state = {
+      scenario: "mixed",
+      samples: [],
+      computed: [],
+      events: [],
+      selectedIndex: null,
+      labels: loadLabels(),
+      liveSource: null,
+      liveConnected: false,
+      liveGeometryApplied: false,
+      liveLastFrameAtMs: null,
+      liveErrorAtMs: null,
+      lastQualityRenderKey: "",
+      waveform: { status: "idle", key: "" },
+      waveformTimer: null,
+      waveformCsvText: "",
+      waveformCsvLoadedAtMs: 0,
+      hover: null,
+      lang: loadLanguage(),
+    };
+
+    const els = {
+      scenarioTabs: document.getElementById("scenarioTabs"),
+      scenarioName: document.getElementById("scenarioName"),
+      serialInput: document.getElementById("serialInput"),
+      liveBtn: document.getElementById("liveBtn"),
+      stopLiveBtn: document.getElementById("stopLiveBtn"),
+      clearDataBtn: document.getElementById("clearDataBtn"),
+      langToggle: document.getElementById("langToggle"),
+      deadband: document.getElementById("deadband"),
+      pipeOuterDiameter: document.getElementById("pipeOuterDiameter"),
+      pipeWallThickness: document.getElementById("pipeWallThickness"),
+      tempCoeff: document.getElementById("tempCoeff"),
+      trackerAlpha: document.getElementById("trackerAlpha"),
+      alertThreshold: document.getElementById("alertThreshold"),
+      deadbandOut: document.getElementById("deadbandOut"),
+      outerDiameterOut: document.getElementById("outerDiameterOut"),
+      wallThicknessOut: document.getElementById("wallThicknessOut"),
+      innerDiameterOut: document.getElementById("innerDiameterOut"),
+      tempCoeffOut: document.getElementById("tempCoeffOut"),
+      trackerAlphaOut: document.getElementById("trackerAlphaOut"),
+      alertOut: document.getElementById("alertOut"),
+      suppressToggle: document.getElementById("suppressToggle"),
+      feedbackToggle: document.getElementById("feedbackToggle"),
+      coolingToggle: document.getElementById("coolingToggle"),
+      recomputeBtn: document.getElementById("recomputeBtn"),
+      demoBtn: document.getElementById("demoBtn"),
+      exportBtn: document.getElementById("exportBtn"),
+      resetLabelsBtn: document.getElementById("resetLabelsBtn"),
+      csvInput: document.getElementById("csvInput"),
+      tempChart: document.getElementById("tempChart"),
+      flowChart: document.getElementById("flowChart"),
+      displayChart: document.getElementById("displayChart"),
+      probChart: document.getElementById("probChart"),
+      waveformChart: document.getElementById("waveformChart"),
+      waveformMeta: document.getElementById("waveformMeta"),
+      waveformStats: document.getElementById("waveformStats"),
+      auditRows: document.getElementById("auditRows"),
+      eventList: document.getElementById("eventList"),
+      eventCount: document.getElementById("eventCount"),
+      noticeText: document.getElementById("noticeText"),
+      copyNoticeBtn: document.getElementById("copyNoticeBtn"),
+      markSentBtn: document.getElementById("markSentBtn"),
+      trainingStatus: document.getElementById("trainingStatus"),
+      trainUpdates: document.getElementById("trainUpdates"),
+      trainStable: document.getElementById("trainStable"),
+      trainFreeze: document.getElementById("trainFreeze"),
+      dataQuality: document.getElementById("dataQuality"),
+      lastSampleAge: document.getElementById("lastSampleAge"),
+      liveSource: document.getElementById("liveSource"),
+      selectionLabel: document.getElementById("selectionLabel"),
+      sampleCount: document.getElementById("sampleCount"),
+      runStatus: document.getElementById("runStatus"),
+      kpiTemp: document.getElementById("kpiTemp"),
+      kpiRaw: document.getElementById("kpiRaw"),
+      kpiRawM3h: document.getElementById("kpiRawM3h"),
+      kpiCorrected: document.getElementById("kpiCorrected"),
+      kpiCorrectedM3h: document.getElementById("kpiCorrectedM3h"),
+      kpiPublished: document.getElementById("kpiPublished"),
+      kpiPublishedM3h: document.getElementById("kpiPublishedM3h"),
+      kpiRisk: document.getElementById("kpiRisk"),
+      toast: document.getElementById("toast"),
+      chartTooltip: document.getElementById("chartTooltip"),
+    };
+
+    const charts = [
+      { el: els.tempChart, draw: drawTempChart },
+      { el: els.flowChart, draw: drawFlowChart },
+      { el: els.displayChart, draw: drawDisplayChart },
+      { el: els.probChart, draw: drawProbabilityChart },
+      { el: els.waveformChart, draw: drawWaveformChart },
+    ];
+
+    const color = {
+      raw: "#64748b",
+      zero: "#0f766e",
+      corrected: "#2563eb",
+      published: "#b91c1c",
+      waveform: "#334155",
+      baseline: "#0f766e",
+      gate: "rgba(245, 158, 11, 0.16)",
+      noise: "rgba(37, 99, 235, 0.10)",
+      peak: "#b91c1c",
+      temp: "#2563eb",
+      rate: "#b45309",
+      phantom: "#b91c1c",
+      event: "#2563eb",
+      zeroProb: "#0f766e",
+      grid: "#e5eaf0",
+      text: "#526170",
+      band: "rgba(185, 28, 28, 0.08)",
+    };
+
+    const LIVE_STALE_AFTER_MS = 6500;
+    const LIVE_DISCONNECTED_AFTER_MS = 15000;
+    const SAMPLE_GAP_AFTER_MS = 6500;
+    const WAVEFORM_CSV_PATH = "live_BB8100017587_realtime.csv";
+    const WAVEFORM_BASELINE_SAMPLES = 160;
+    const WAVEFORM_GATE_START = 228;
+    const WAVEFORM_GATE_END = 548;
+
+    const I18N = {
+      zh: {
+        appTitle: "温度零点追踪实验台",
+        subtitle: "本地测试 phantom flow、温度漂移、用户确认标签和客户通知文案",
+        connectLive: "连接实时",
+        disconnect: "断开",
+        clearData: "清理数据",
+        resetLabelsTitle: "清空本地用户确认标签",
+        demoData: "生成模拟数据",
+        importCsv: "导入 CSV",
+        exportLabels: "导出标签",
+        advanced: "高级参数",
+        scenario: "测试场景",
+        heating: "升温",
+        cooling: "降温",
+        mixed: "混合",
+        liveScenario: "实时 {serial}",
+        pipeOd: "PD 外径",
+        pipeWall: "PT 壁厚",
+        innerDiameter: "内径",
+        tempSensitivity: "FS 温度灵敏度",
+        trackingSpeed: "追踪速度",
+        alertThreshold: "通知阈值",
+        suppressPhantom: "抑制高置信 phantom",
+        feedbackLearning: "用户确认参与学习",
+        splitCooling: "降温单独建模",
+        recompute: "重新计算",
+        currentTemp: "当前温度",
+        rawFlow: "Raw flow",
+        correctedFlow: "Corrected flow",
+        userSeen: "用户看到",
+        phantomRisk: "Phantom risk",
+        tempDrift: "温度与热漂移",
+        flowZeroSuppression: "流量、零点与抑制结果",
+        selectHint: "选择一行或一个事件查看通知草稿",
+        userGpm: "用户看到 GPM",
+        probabilities: "判定概率",
+        waveformEvidence: "波形证据",
+        waitingSample: "等待选择样本",
+        notificationQueue: "通知队列",
+        notificationDraft: "客户通知草稿",
+        copyDraftTitle: "复制通知草稿",
+        markSent: "标记为已通知",
+        trainingStatus: "训练状态",
+        noCustomerNotifications: "当前没有需要推送给客户的通知；phantom flow 会自动修正并记录在表格。",
+        noData: "当前没有数据。",
+        clearedSelection: "已清理页面数据",
+        clearedWaveform: "已清理",
+        waitingFreshFrames: "waiting for fresh frames",
+        cleared: "cleared",
+        toastDemo: "已生成新的模拟数据",
+        toastLabelsCleared: "本地确认标签已清空",
+        toastMarkedSent: "已标记为已通知",
+        toastClearedLive: "页面数据已清理，等待新的实时帧",
+        toastCleared: "页面数据已清理",
+        toastConnected: "已连接实时数据：{serial}",
+        toastInterrupted: "实时连接中断，服务可能未启动",
+        toastParseFailed: "实时数据解析失败：{message}",
+        toastImportOk: "已导入 {count} 行",
+        toastImportFailed: "导入失败：{message}",
+        csvRequired: "需要 temperature_c/temp，并提供 fr_m3h/fr、fs_mps/fs 或 flow_lpm 列",
+        copiedDraft: "通知草稿已复制",
+        markedLabel: "已标记 {time} 为 {label}",
+        gapTitle: "数据缺口",
+        flowReviewTitle: "可能真实用水",
+        eventTitle: "疑似真实用水事件",
+        reviewTitle: "需要复核",
+        gapFrozen: "训练和零点追踪已冻结，等待连续稳定帧恢复。",
+        gapEvent: "采样时间跳过 {duration}，断线期间 current GPM 不可信；如 totalizer 可用，应优先用累计量恢复 volume。",
+        eventMessage: "event={event}，用户显示={displayed}，corrected={corrected}。建议推送用户确认是否为真实用水。",
+        flowReviewMessage: "phantom={phantom} 但 event={event}，corrected={corrected}。自动修正暂停升级为用户确认。",
+        genericReview: "系统需要复核当前流量状态。",
+        staleNoticeTitle: "当前流量数据已过期，无法判断实时 GPM。",
+        gapNoticeTitle: "检测到数据缺口，当前片段不适合用于零点校准。",
+        phantomNoticeTitle: "内部记录：检测到疑似 phantom flow，系统已自动修正。",
+        eventNoticeTitle: "检测到一段可能的真实用水事件。",
+        zeroNoticeTitle: "当前读数已接近零点。",
+        reviewNoticeTitle: "当前流量读数需要继续观察。",
+        handlingNoZero: "处理：不把断线期间显示为 0 GPM；暂停 phantom/event 判定、zero tracking 和自训练，等待连续稳定帧恢复。",
+        handlingGap: "处理：该帧不参与自训练；如果 flow total 连续，volume 应优先用 totalizer delta 恢复。",
+        handlingPhantom: "处理：该段不主动推送客户；只有 event probability 上升或 phantom/event 信号冲突时才进入通知队列。",
+        handlingEvent: "处理：该段暂按真实用水保留；如确认没有用水，请选择 Zero flow 触发复核。",
+        handlingZero: "处理：系统将该段作为候选无流片段，用于慢速零点追踪。",
+        lastFrameTime: "最后一帧时间",
+        age: "距今",
+        lastDisplayed: "最后一帧用户显示",
+        connectionState: "连接状态",
+        time: "时间",
+        gapLength: "缺口长度",
+        recoveredFrame: "恢复后一帧",
+        currentTempLine: "当前温度",
+        tempRateLine: "变化速率",
+        waveformEvidenceLine: "波形证据",
+        systemJudgement: "系统判断",
+        risk: "风险",
+        correctedFlowLine: "修正后流量",
+        displayedLine: "用户显示",
+        correctedFsLine: "修正后 fs",
+        eventProbabilityLine: "event flow 概率",
+        zeroEstimateLine: "零点估计",
+        waveformLiveOnly: "实时 waveform 仅在 MQTT/CSV live 模式下可用",
+        waveformNoMatchKeep: "没有匹配的新 waveform，保留上一帧",
+        waveformNoMatch: "没有匹配的 waveform CSV 行",
+        waveformReadFailed: "读取新 waveform 失败：{message}",
+        noSample: "没有样本",
+        loadingWaveform: "正在读取 waveform CSV...",
+        waitingWaveform: "等待 waveform CSV",
+        waveformLoadingCanvas: "Loading waveform...",
+        noWaveformCanvas: "No waveform selected",
+        langButton: "EN",
+      },
+      en: {
+        appTitle: "Temperature Zero Tracking Lab",
+        subtitle: "Local prototype for phantom flow, temperature drift, user labels, and customer messaging",
+        connectLive: "Connect live",
+        disconnect: "Disconnect",
+        clearData: "Clear data",
+        resetLabelsTitle: "Clear local user labels",
+        demoData: "Generate demo",
+        importCsv: "Import CSV",
+        exportLabels: "Export labels",
+        advanced: "Advanced parameters",
+        scenario: "Scenario",
+        heating: "Heating",
+        cooling: "Cooling",
+        mixed: "Mixed",
+        liveScenario: "Live {serial}",
+        pipeOd: "PD outer diameter",
+        pipeWall: "PT wall thickness",
+        innerDiameter: "Inner diameter",
+        tempSensitivity: "FS temp sensitivity",
+        trackingSpeed: "Tracking speed",
+        alertThreshold: "Notification threshold",
+        suppressPhantom: "Suppress high-confidence phantom",
+        feedbackLearning: "Use user labels for learning",
+        splitCooling: "Separate cooling model",
+        recompute: "Recompute",
+        currentTemp: "Current temp",
+        rawFlow: "Raw flow",
+        correctedFlow: "Corrected flow",
+        userSeen: "User-visible",
+        phantomRisk: "Phantom risk",
+        tempDrift: "Temperature and drift",
+        flowZeroSuppression: "Flow, zero estimate, and suppression",
+        selectHint: "Select a row or notification to inspect the draft",
+        userGpm: "User-visible GPM",
+        probabilities: "Classification probabilities",
+        waveformEvidence: "Waveform evidence",
+        waitingSample: "Waiting for selected sample",
+        notificationQueue: "Notification queue",
+        notificationDraft: "Notification / internal note",
+        copyDraftTitle: "Copy draft",
+        markSent: "Mark notified",
+        trainingStatus: "Training status",
+        noCustomerNotifications: "No customer notifications needed; phantom flow is auto-corrected and recorded in the table.",
+        noData: "No data.",
+        clearedSelection: "Page data cleared",
+        clearedWaveform: "Cleared",
+        waitingFreshFrames: "waiting for fresh frames",
+        cleared: "cleared",
+        toastDemo: "Generated new demo data",
+        toastLabelsCleared: "Local confirmation labels cleared",
+        toastMarkedSent: "Marked as notified",
+        toastClearedLive: "Page data cleared; waiting for fresh live frames",
+        toastCleared: "Page data cleared",
+        toastConnected: "Connected to live data: {serial}",
+        toastInterrupted: "Live connection interrupted; server may not be running",
+        toastParseFailed: "Failed to parse live data: {message}",
+        toastImportOk: "Imported {count} rows",
+        toastImportFailed: "Import failed: {message}",
+        csvRequired: "CSV needs temperature_c/temp and one of fr_m3h/fr, fs_mps/fs, or flow_lpm",
+        copiedDraft: "Draft copied",
+        markedLabel: "Marked {time} as {label}",
+        gapTitle: "Data gap",
+        flowReviewTitle: "Possible real flow",
+        eventTitle: "Likely real water event",
+        reviewTitle: "Needs review",
+        gapFrozen: "Training and zero tracking are frozen until stable frames resume.",
+        gapEvent: "Sampling skipped {duration}; current GPM is unreliable during the outage. Use totalizer delta first if available.",
+        eventMessage: "event={event}, displayed={displayed}, corrected={corrected}. Recommend asking the user to confirm whether this is real water use.",
+        flowReviewMessage: "phantom={phantom} but event={event}, corrected={corrected}. Auto-correction is escalated to user confirmation.",
+        genericReview: "The system needs to review the current flow state.",
+        staleNoticeTitle: "Current flow data is stale; real-time GPM cannot be determined.",
+        gapNoticeTitle: "A data gap was detected; this segment should not be used for zero calibration.",
+        phantomNoticeTitle: "Internal note: suspected phantom flow was detected and auto-corrected.",
+        eventNoticeTitle: "A possible real water event was detected.",
+        zeroNoticeTitle: "Current reading is near zero.",
+        reviewNoticeTitle: "Current flow reading needs more observation.",
+        handlingNoZero: "Action: do not display outage periods as 0 GPM; freeze phantom/event decisions, zero tracking, and self-training until stable frames resume.",
+        handlingGap: "Action: exclude this frame from self-training; if flow total is continuous, recover volume using totalizer delta first.",
+        handlingPhantom: "Action: do not notify the customer for this segment; notify only when event probability rises or phantom/event evidence conflicts.",
+        handlingEvent: "Action: keep this segment as real water use for now; if the user confirms no water use, choose Zero flow for review.",
+        handlingZero: "Action: use this segment as a candidate no-flow period for slow zero tracking.",
+        lastFrameTime: "Last frame",
+        age: "age",
+        lastDisplayed: "Last displayed",
+        connectionState: "Connection",
+        time: "Time",
+        gapLength: "Gap length",
+        recoveredFrame: "Recovered frame",
+        currentTempLine: "Current temp",
+        tempRateLine: "rate",
+        waveformEvidenceLine: "Waveform evidence",
+        systemJudgement: "System judgement",
+        risk: "risk",
+        correctedFlowLine: "Corrected flow",
+        displayedLine: "Displayed",
+        correctedFsLine: "Corrected fs",
+        eventProbabilityLine: "event flow probability",
+        zeroEstimateLine: "Zero estimate",
+        waveformLiveOnly: "Live waveform is only available in MQTT/CSV live mode",
+        waveformNoMatchKeep: "No matching new waveform; keeping previous frame",
+        waveformNoMatch: "No matching waveform CSV row",
+        waveformReadFailed: "Failed to read new waveform: {message}",
+        noSample: "No sample",
+        loadingWaveform: "Reading waveform CSV...",
+        waitingWaveform: "Waiting for waveform CSV",
+        waveformLoadingCanvas: "Loading waveform...",
+        noWaveformCanvas: "No waveform selected",
+        langButton: "中文",
+      },
+    };
+
+    init();
+
+    function init() {
+      bindEvents();
+      bindChartHover();
+      applyLanguage();
+      state.samples = generateDemoData(state.scenario);
+      recompute();
+      window.addEventListener("resize", resizeAllCharts);
+      window.setInterval(refreshLiveQuality, 1000);
+      resizeAllCharts();
+    }
+
+    function bindEvents() {
+      els.scenarioTabs.addEventListener("click", (event) => {
+        const button = event.target.closest("button[data-scenario]");
+        if (!button) return;
+        state.scenario = button.dataset.scenario;
+        [...els.scenarioTabs.querySelectorAll("button")].forEach((item) => {
+          item.classList.toggle("active", item === button);
+        });
+        updateScenarioName();
+        state.samples = generateDemoData(state.scenario);
+        recompute();
+      });
+
+      [els.deadband, els.pipeOuterDiameter, els.pipeWallThickness, els.tempCoeff, els.trackerAlpha, els.alertThreshold].forEach((input) => {
+        input.addEventListener("input", () => {
+          syncOutputs();
+          recompute();
+        });
+      });
+
+      [els.suppressToggle, els.feedbackToggle, els.coolingToggle].forEach((input) => {
+        input.addEventListener("change", recompute);
+      });
+
+      els.recomputeBtn.addEventListener("click", recompute);
+      els.liveBtn.addEventListener("click", startLive);
+      els.stopLiveBtn.addEventListener("click", stopLive);
+      els.clearDataBtn.addEventListener("click", clearUiData);
+      els.langToggle.addEventListener("click", toggleLanguage);
+      els.demoBtn.addEventListener("click", () => {
+        stopLive();
+        state.samples = generateDemoData(state.scenario);
+        state.liveGeometryApplied = false;
+        state.liveLastFrameAtMs = null;
+        state.liveErrorAtMs = null;
+        state.lastQualityRenderKey = "";
+        recompute();
+        showToast(t("toastDemo"));
+      });
+      els.exportBtn.addEventListener("click", exportLabels);
+      els.resetLabelsBtn.addEventListener("click", () => {
+        state.labels = {};
+        localStorage.removeItem("zeroFlowPrototypeLabels");
+        recompute();
+        showToast(t("toastLabelsCleared"));
+      });
+      els.csvInput.addEventListener("change", handleCsvUpload);
+      els.copyNoticeBtn.addEventListener("click", copyNotice);
+      els.markSentBtn.addEventListener("click", () => showToast(t("toastMarkedSent")));
+    }
+
+    function bindChartHover() {
+      charts.forEach(({ el, draw }) => {
+        el.addEventListener("mousemove", (event) => {
+          updateChartHover(el, draw, event);
+        });
+        el.addEventListener("mouseleave", () => {
+          state.hover = null;
+          hideChartTooltip();
+          redrawChart(el, draw);
+        });
+        el.addEventListener("click", () => {
+          if (state.hover?.index !== undefined && state.hover.chartId !== "waveformChart") {
+            selectIndex(state.hover.index);
+          }
+        });
+      });
+    }
+
+    function t(key, values = {}) {
+      const dict = I18N[state.lang] || I18N.zh;
+      const template = dict[key] ?? I18N.zh[key] ?? key;
+      return template.replace(/\{(\w+)\}/g, (_, name) => values[name] ?? "");
+    }
+
+    function toggleLanguage() {
+      state.lang = state.lang === "zh" ? "en" : "zh";
+      saveLanguage();
+      applyLanguage();
+      recompute();
+      renderWaveformPanel();
+    }
+
+    function applyLanguage() {
+      document.documentElement.lang = state.lang === "en" ? "en" : "zh-CN";
+      document.title = t("appTitle");
+      setText("h1", t("appTitle"));
+      setText(".subtitle", t("subtitle"));
+      els.liveBtn.textContent = t("connectLive");
+      els.stopLiveBtn.textContent = t("disconnect");
+      els.clearDataBtn.textContent = t("clearData");
+      els.langToggle.textContent = t("langButton");
+      els.resetLabelsBtn.title = t("resetLabelsTitle");
+      els.demoBtn.textContent = t("demoData");
+      document.querySelector(".file-button button").textContent = t("importCsv");
+      els.exportBtn.textContent = t("exportLabels");
+      setText(".advanced-panel summary", t("advanced"));
+      setTextAt(".label-line strong", 0, t("scenario"));
+      setText("[data-scenario='heating']", t("heating"));
+      setText("[data-scenario='cooling']", t("cooling"));
+      setText("[data-scenario='mixed']", t("mixed"));
+      setTextAt(".label-line strong", 2, t("pipeOd"));
+      setTextAt(".label-line strong", 3, t("pipeWall"));
+      setTextAt(".label-line strong", 4, t("innerDiameter"));
+      setTextAt(".label-line strong", 5, t("tempSensitivity"));
+      setTextAt(".label-line strong", 6, t("trackingSpeed"));
+      setTextAt(".label-line strong", 7, t("alertThreshold"));
+      setTextAt(".toggle-row > span:first-child", 0, t("suppressPhantom"));
+      setTextAt(".toggle-row > span:first-child", 1, t("feedbackLearning"));
+      setTextAt(".toggle-row > span:first-child", 2, t("splitCooling"));
+      els.recomputeBtn.textContent = t("recompute");
+      setTextAt(".kpi span", 0, t("currentTemp"));
+      setTextAt(".kpi span", 1, t("rawFlow"));
+      setTextAt(".kpi span", 2, t("correctedFlow"));
+      setTextAt(".kpi span", 3, t("userSeen"));
+      setTextAt(".kpi span", 4, t("phantomRisk"));
+      setTextAt(".chart-title > span:first-child", 0, t("tempDrift"));
+      setTextAt(".chart-title > span:first-child", 1, t("flowZeroSuppression"));
+      setTextAt(".chart-title > span:first-child", 2, t("userGpm"));
+      setTextAt(".chart-title > span:first-child", 3, t("probabilities"));
+      setTextAt(".chart-title > span:first-child", 4, t("waveformEvidence"));
+      setText(".right-rail .panel:nth-child(1) .panel-title", t("notificationQueue"));
+      setText(".right-rail .panel:nth-child(2) .panel-title", t("notificationDraft"));
+      els.copyNoticeBtn.title = t("copyDraftTitle");
+      els.markSentBtn.textContent = t("markSent");
+      setText(".right-rail .panel:nth-child(3) .panel-title", t("trainingStatus"));
+      updateScenarioName();
+      if (!state.computed.length) {
+        els.selectionLabel.textContent = t("selectHint");
+        els.waveformMeta.textContent = t("waitingSample");
+      }
+    }
+
+    function updateScenarioName() {
+      if (state.samples.some((sample) => sample.id?.startsWith("live-"))) {
+        const serial = (els.serialInput.value || "BB8100017587").trim();
+        els.scenarioName.textContent = t("liveScenario", { serial });
+      } else {
+        els.scenarioName.textContent = t(state.scenario);
+      }
+    }
+
+    function setText(selector, value) {
+      const el = document.querySelector(selector);
+      if (el) el.textContent = value;
+    }
+
+    function setTextAt(selector, index, value) {
+      const el = document.querySelectorAll(selector)[index];
+      if (el) el.textContent = value;
+    }
+
+    function syncOutputs() {
+      els.deadbandOut.value = Number(els.deadband.value).toFixed(3);
+      const geometry = pipeGeometry(Number(els.pipeOuterDiameter.value), Number(els.pipeWallThickness.value));
+      els.outerDiameterOut.value = geometry.outerDiameterMm.toFixed(2);
+      els.wallThicknessOut.value = geometry.wallThicknessMm.toFixed(2);
+      els.innerDiameterOut.value = geometry.innerDiameterMm.toFixed(2);
+      els.tempCoeffOut.value = Number(els.tempCoeff.value).toFixed(4);
+      els.trackerAlphaOut.value = Number(els.trackerAlpha.value).toFixed(3);
+      els.alertOut.value = Number(els.alertThreshold.value).toFixed(0);
+    }
+
+    function currentConfig() {
+      const geometry = pipeGeometry(Number(els.pipeOuterDiameter.value), Number(els.pipeWallThickness.value));
+      const deadbandFrM3h = Number(els.deadband.value);
+      return {
+        pipeOuterDiameterMm: geometry.outerDiameterMm,
+        pipeWallThicknessMm: geometry.wallThicknessMm,
+        pipeInnerDiameterMm: geometry.innerDiameterMm,
+        areaM2: geometry.areaM2,
+        deadbandFrM3h,
+        deadbandFsMps: frToFs(deadbandFrM3h, geometry.areaM2),
+        tempCoeffFs: Number(els.tempCoeff.value),
+        trackerAlpha: Number(els.trackerAlpha.value),
+        alertThreshold: Number(els.alertThreshold.value) / 100,
+        suppress: els.suppressToggle.checked,
+        feedback: els.feedbackToggle.checked,
+        splitCooling: els.coolingToggle.checked,
+      };
+    }
+
+    function recompute() {
+      syncOutputs();
+      const config = currentConfig();
+      state.computed = runZeroTracker(state.samples, config, state.labels);
+      state.events = buildEvents(state.computed, config);
+      if (state.selectedIndex === null || state.selectedIndex >= state.computed.length) {
+        state.selectedIndex = state.events[0]?.index ?? Math.max(0, state.computed.length - 1);
+      }
+      render();
+    }
+
+    function startLive() {
+      stopLive();
+      const serial = (els.serialInput.value || "BB8100017587").trim();
+      const endpoint = liveEndpoint(serial);
+      state.samples = [];
+      state.computed = [];
+      state.events = [];
+      state.selectedIndex = null;
+      state.liveGeometryApplied = false;
+      state.liveLastFrameAtMs = null;
+      state.liveErrorAtMs = null;
+      state.lastQualityRenderKey = "";
+      state.scenarioName = "live";
+      updateScenarioName();
+      state.liveSource = new EventSource(endpoint);
+      state.liveConnected = true;
+      els.liveSource.textContent = endpoint;
+      state.liveSource.onopen = () => {
+        state.liveConnected = true;
+        state.liveErrorAtMs = null;
+        showToast(t("toastConnected", { serial }));
+        render();
+      };
+      state.liveSource.onerror = () => {
+        state.liveConnected = false;
+        state.liveErrorAtMs = Date.now();
+        showToast(t("toastInterrupted"));
+        render();
+      };
+      state.liveSource.addEventListener("frame", (event) => {
+        try {
+          state.liveConnected = true;
+          state.liveLastFrameAtMs = Date.now();
+          state.liveErrorAtMs = null;
+          appendLiveRecord(JSON.parse(event.data));
+        } catch (error) {
+          showToast(t("toastParseFailed", { message: error.message }));
+        }
+      });
+      render();
+    }
+
+    function stopLive() {
+      if (state.liveSource) {
+        state.liveSource.close();
+      }
+      state.liveSource = null;
+      state.liveConnected = false;
+      state.liveErrorAtMs = Date.now();
+      renderTraining();
+    }
+
+    function clearUiData() {
+      state.samples = [];
+      state.computed = [];
+      state.events = [];
+      state.selectedIndex = null;
+      state.liveGeometryApplied = false;
+      state.liveLastFrameAtMs = null;
+      state.liveErrorAtMs = null;
+      state.lastQualityRenderKey = "";
+      els.auditRows.innerHTML = "";
+      els.eventList.innerHTML = `<div class="empty">${t("noData")}</div>`;
+      els.noticeText.value = "";
+      els.selectionLabel.textContent = t("clearedSelection");
+      els.sampleCount.textContent = "0 samples";
+      els.eventCount.textContent = "0";
+      els.kpiTemp.textContent = "--";
+      els.kpiRaw.textContent = "--";
+      els.kpiRawM3h.textContent = "--";
+      els.kpiCorrected.textContent = "--";
+      els.kpiCorrectedM3h.textContent = "--";
+      els.kpiPublished.textContent = "--";
+      els.kpiPublishedM3h.textContent = "--";
+      els.kpiRisk.textContent = "--";
+      state.hover = null;
+      hideChartTooltip();
+      els.trainUpdates.textContent = "--";
+      els.trainStable.textContent = "--";
+      els.trainFreeze.textContent = "--";
+      els.dataQuality.textContent = state.liveSource ? t("waitingFreshFrames") : t("cleared");
+      els.lastSampleAge.textContent = "--";
+      state.waveform = { status: "idle", key: "" };
+      els.waveformMeta.textContent = t("clearedWaveform");
+      els.waveformStats.innerHTML = "";
+      renderRunStatus();
+      resizeAllCharts();
+      showToast(state.liveSource ? t("toastClearedLive") : t("toastCleared"));
+    }
+
+    function liveEndpoint(serial) {
+      const params = new URLSearchParams({ serial, backlog: "300" });
+      if (window.location.protocol === "file:") {
+        return `http://127.0.0.1:8765/stream?${params}`;
+      }
+      return `/stream?${params}`;
+    }
+
+    function appendLiveRecord(record) {
+      if (!state.liveGeometryApplied && record.pipe_outer_diameter_mm && record.pipe_wall_thickness_mm) {
+        els.pipeOuterDiameter.value = String(record.pipe_outer_diameter_mm);
+        els.pipeWallThickness.value = String(record.pipe_wall_thickness_mm);
+        state.liveGeometryApplied = true;
+        syncOutputs();
+      }
+      const sample = sampleFromLiveRecord(record);
+      const previous = state.samples[state.samples.length - 1];
+      sample.receivedAtMs = Date.now();
+      sample.sourceGapMs = previous ? sample.timestamp - previous.timestamp : 0;
+      sample.arrivalGapMs = previous?.receivedAtMs ? sample.receivedAtMs - previous.receivedAtMs : 0;
+      sample.dataGap = sample.sourceGapMs > SAMPLE_GAP_AFTER_MS;
+      sample.dataQuality = sample.dataGap ? "gap" : "ok";
+      state.samples.push(sample);
+      if (state.samples.length > 1200) state.samples.shift();
+      state.selectedIndex = state.samples.length - 1;
+      recompute();
+    }
+
+    function sampleFromLiveRecord(record) {
+      const features = record.features || {};
+      const config = currentConfig();
+      const areaM2 = finiteNumber(record.pipe_area_from_geometry_m2)
+        ?? finiteNumber(record.pipe_area_m2)
+        ?? finiteNumber(record.pipe_area)
+        ?? config.areaM2;
+      const rawFsMps = finiteNumber(record.pub_fs_mps)
+        ?? finiteNumber(record.raw_flow_speed_mps)
+        ?? finiteNumber(record.zero_corr_fs_mps)
+        ?? finiteNumber(record.corr_fs_mps)
+        ?? 0;
+      const rawFrM3h = finiteNumber(record.pub_fr_m3h)
+        ?? finiteNumber(record.raw_flow_rate_m3h)
+        ?? finiteNumber(record.zero_corr_fr_m3h)
+        ?? finiteNumber(record.corr_fr_m3h)
+        ?? fsToFr(rawFsMps, areaM2);
+      const onboardTemp = finiteNumber(record.onboard_temperature_c) ?? finiteNumber(record.ots);
+      const fallbackTemp = finiteNumber(record.temperature_c) ?? onboardTemp ?? 25;
+      const timestamp = parseTimestamp(record.timestamp || record.server_timestamp || Date.now(), state.samples.length);
+      return {
+        id: `live-${record.serial || "meter"}-${timestamp.toISOString()}-${state.samples.length}`,
+        timestamp,
+        serial: record.serial || "",
+        temperatureC: fallbackTemp,
+        otsTempC: onboardTemp,
+        rawFsMps,
+        rawFrM3h,
+        diagnoseDtNs: finiteNumber(record.diagnose_dt_ns),
+        diagnoseTtNs: finiteNumber(record.diagnose_tt_ns),
+        analyzerScore: finiteNumber(record.score),
+        analyzerLabel: record.label || "",
+        pipeState: record.pipe_state || "",
+        healthScore: finiteNumber(record.flow_meter_health?.score),
+        measurementConfidence: finiteNumber(record.measurement_confidence),
+        training: record.self_training || null,
+        trueFsMps: 0,
+        trueFrM3h: 0,
+        templateCorr: finiteNumber(features.template_corr) ?? 0.9965,
+        noiseRms: finiteNumber(features.noise_rms_v) ?? 0.25,
+        gateRms: finiteNumber(features.gate_rms_v) ?? 1.05,
+        snrDb: finiteNumber(features.snr_db) ?? 12.2,
+        baselineV: finiteNumber(features.baseline_v),
+        peakAbsGateV: finiteNumber(features.peak_abs_gate_v),
+        firstArrivalOffsetSamples: finiteNumber(features.first_arrival_offset_samples),
+        peakOffsetSamples: finiteNumber(features.peak_offset_samples),
+        lowClipRatio: finiteNumber(features.low_clip_ratio),
+        highClipRatio: finiteNumber(features.high_clip_ratio),
+        ptpV: finiteNumber(features.ptp_v),
+      };
+    }
+
+    function runZeroTracker(samples, config, labels) {
+      if (!samples.length) return [];
+      const baseTemp = samples.slice(0, Math.min(12, samples.length)).reduce((sum, row) => sum + row.temperatureC, 0) / Math.min(12, samples.length);
+      const thermalTemps = samples
+        .map((row) => Number(row.otsTempC ?? row.temperatureC))
+        .filter(Number.isFinite);
+      const thermalReferenceC = thermalTemps.length ? median(thermalTemps.slice(0, Math.min(12, thermalTemps.length))) : baseTemp;
+      let adaptiveFs = 0;
+      let lastTemp = Number(samples[0].otsTempC ?? samples[0].temperatureC);
+      let lastTimestamp = samples[0].timestamp;
+      let zeroStability = 0;
+      let noFlowRun = 0;
+
+      return samples.map((row, index) => {
+        const minutes = Math.max((row.timestamp - lastTimestamp) / 60000, 0.001);
+        const otsTempC = Number.isFinite(Number(row.otsTempC)) ? Number(row.otsTempC) : null;
+        const thermalTempC = otsTempC ?? row.temperatureC;
+        const dTemp = thermalTempC - lastTemp;
+        const tempRate = index === 0 ? 0 : dTemp / minutes;
+        const thermalDeltaC = thermalTempC - thermalReferenceC;
+        const thermalGradientC = otsTempC === null ? null : otsTempC - row.temperatureC;
+        const thermalGradientScore = thermalGradientC === null ? 0 : clamp01(Math.abs(thermalGradientC) / 12);
+        const rawFsMps = row.rawFsMps ?? frToFs(row.rawFrM3h, config.areaM2);
+        const rawFrM3h = row.rawFrM3h ?? fsToFr(rawFsMps, config.areaM2);
+        const signedRateCoeff = config.splitCooling && tempRate < 0 ? config.tempCoeffFs * 1.45 : config.tempCoeffFs;
+        const tempModelFs = config.tempCoeffFs * thermalDeltaC + signedRateCoeff * 1.8 * tempRate;
+        const label = labels[row.id];
+        const estimateBeforeFs = tempModelFs + adaptiveFs;
+        const correctedBeforeFs = rawFsMps - estimateBeforeFs;
+        const waveformDrift = clamp01(
+          Math.abs(tempRate) / 0.18 * 0.34 +
+          Math.max(0, 0.997 - row.templateCorr) / 0.004 * 0.30 +
+          Math.max(0, row.noiseRms - 0.25) / 0.06 * 0.20 +
+          thermalGradientScore * 0.16
+        );
+        const lowFlowEvidence = clamp01(1 - Math.abs(correctedBeforeFs) / Math.max(config.deadbandFsMps * 5.0, 0.0001));
+        const rawSmallEnough = clamp01(1 - Math.abs(rawFsMps) / Math.max(config.deadbandFsMps * 8.0, 0.0001));
+        const eventEvidence = clamp01(
+          Math.abs(correctedBeforeFs) / Math.max(config.deadbandFsMps * 7.0, 0.0001) * 0.60 +
+          Math.max(0, row.templateCorr - 0.995) / 0.004 * 0.25 +
+          Math.max(0, row.snrDb - 12.1) / 1.0 * 0.15
+        );
+        let zeroProbability = clamp01(0.55 * lowFlowEvidence + 0.25 * rawSmallEnough + 0.20 * (1 - eventEvidence));
+        let phantomProbability = clamp01(0.48 * waveformDrift + 0.31 * lowFlowEvidence + 0.11 * rawSmallEnough + 0.16 * thermalGradientScore - 0.24 * eventEvidence);
+        let eventProbability = clamp01(eventEvidence - 0.35 * phantomProbability);
+
+        if (label === "zero") {
+          zeroProbability = Math.max(zeroProbability, 0.97);
+          phantomProbability = Math.max(phantomProbability, 0.72);
+          eventProbability = Math.min(eventProbability, 0.08);
+        } else if (label === "event") {
+          eventProbability = Math.max(eventProbability, 0.97);
+          zeroProbability = Math.min(zeroProbability, 0.05);
+          phantomProbability = Math.min(phantomProbability, 0.08);
+        } else if (label === "unsure") {
+          phantomProbability = Math.max(phantomProbability, 0.45);
+        }
+
+        if (row.dataGap) {
+          zeroProbability = 0;
+          phantomProbability = 0;
+          eventProbability = 0;
+        }
+
+        const canLearn = !row.dataGap && config.feedback && (label === "zero" || (zeroProbability > 0.82 && eventProbability < 0.22 && Math.abs(correctedBeforeFs) < config.deadbandFsMps * 2.2));
+        const alpha = label === "zero" ? Math.min(0.35, config.trackerAlpha * 4) : config.trackerAlpha;
+        if (canLearn) {
+          const residualFs = rawFsMps - tempModelFs;
+          adaptiveFs = adaptiveFs * (1 - alpha) + residualFs * alpha;
+          zeroStability = Math.min(1, zeroStability + 0.08);
+          noFlowRun += 1;
+        } else {
+          adaptiveFs *= 0.995;
+          zeroStability = Math.max(0, zeroStability - 0.04);
+          noFlowRun = 0;
+        }
+
+        const zeroEstimateFs = tempModelFs + adaptiveFs;
+        const correctedFsMps = rawFsMps - zeroEstimateFs;
+        let publishedFsMps = correctedFsMps;
+        if (config.suppress && phantomProbability > config.alertThreshold && Math.abs(correctedFsMps) < config.deadbandFsMps * 3.0) {
+          publishedFsMps = 0;
+        }
+        const autoCorrected = publishedFsMps === 0 && correctedFsMps !== 0 && phantomProbability > config.alertThreshold;
+        const zeroEstimateFrM3h = fsToFr(zeroEstimateFs, config.areaM2);
+        const correctedFrM3h = fsToFr(correctedFsMps, config.areaM2);
+        const publishedFrM3h = fsToFr(publishedFsMps, config.areaM2);
+        const rawGpm = m3hToGpm(rawFrM3h);
+        const zeroEstimateGpm = m3hToGpm(zeroEstimateFrM3h);
+        const correctedGpm = m3hToGpm(correctedFrM3h);
+        const publishedGpm = m3hToGpm(publishedFrM3h);
+        const displayedFrM3h = Math.max(0, publishedFrM3h);
+        const displayedGpm = Math.max(0, publishedGpm);
+
+        const measurementConfidence = clamp01(0.96 - 0.45 * phantomProbability + 0.25 * eventProbability - 0.18 * waveformDrift);
+        const stateName = classifyState({ phantomProbability, eventProbability, zeroProbability, correctedFsMps, config });
+
+        const computed = {
+          ...row,
+          index,
+          rawFsMps,
+          rawFrM3h,
+          rawGpm,
+          otsTempC,
+          thermalTempC,
+          thermalDeltaC,
+          thermalGradientC,
+          thermalGradientScore,
+          tempRate,
+          tempModelFs,
+          adaptiveZeroFs: adaptiveFs,
+          zeroEstimateFs,
+          zeroEstimateFrM3h,
+          zeroEstimateGpm,
+          correctedFsMps,
+          correctedFrM3h,
+          correctedGpm,
+          publishedFsMps,
+          publishedFrM3h,
+          publishedGpm,
+          displayedFrM3h,
+          displayedGpm,
+          autoCorrected,
+          waveformDrift,
+          zeroProbability,
+          phantomProbability,
+          eventProbability,
+          measurementConfidence,
+          zeroStability,
+          noFlowRun,
+          stateName,
+          userLabel: label || "",
+        };
+
+        lastTemp = thermalTempC;
+        lastTimestamp = row.timestamp;
+        return computed;
+      });
+    }
+
+    function classifyState(row) {
+      if (row.dataGap) return "data_gap";
+      if (row.eventProbability > 0.72 && Math.abs(row.correctedFsMps) > row.config.deadbandFsMps * 2.5) return "event_flow";
+      if (row.phantomProbability > 0.72) return "phantom_risk";
+      if (row.zeroProbability > 0.78 && Math.abs(row.correctedFsMps) <= row.config.deadbandFsMps * 2.0) return "zero_flow";
+      return "review";
+    }
+
+    function buildEvents(rows, config) {
+      const events = [];
+      let active = null;
+
+      rows.forEach((row) => {
+        const correctedMagnitude = Math.abs(row.correctedFsMps);
+        const eventFlowLikely = row.eventProbability > 0.72 && correctedMagnitude > config.deadbandFsMps * 2.5;
+        const eventFlowPossible = row.eventProbability > 0.48 && correctedMagnitude > config.deadbandFsMps * 1.6;
+        const phantomEventConflict = row.phantomProbability > config.alertThreshold && eventFlowPossible;
+        const needsNotification = row.dataGap || eventFlowLikely || phantomEventConflict;
+        if (!needsNotification) {
+          active = null;
+          return;
+        }
+        const kind = row.dataGap ? "gap" : eventFlowLikely ? "event" : "flow_review";
+        const severity = row.dataGap
+          ? "critical"
+          : eventFlowLikely && (row.eventProbability > 0.86 || correctedMagnitude > config.deadbandFsMps * 5.0)
+            ? "critical"
+            : "watch";
+        if (!active || active.kind !== kind || row.index - active.lastIndex > 5) {
+          active = {
+            id: `${kind}-${row.index}`,
+            kind,
+            severity,
+            startIndex: row.index,
+            index: row.index,
+            lastIndex: row.index,
+            maxPhantom: row.phantomProbability,
+            maxEvent: row.eventProbability,
+            maxTempRate: Math.abs(row.tempRate),
+          };
+          events.push(active);
+        } else {
+          active.lastIndex = row.index;
+          active.maxPhantom = Math.max(active.maxPhantom, row.phantomProbability);
+          active.maxEvent = Math.max(active.maxEvent, row.eventProbability);
+          active.maxTempRate = Math.max(active.maxTempRate, Math.abs(row.tempRate));
+          if (severity === "critical") active.severity = "critical";
+          else if (severity === "watch" && active.severity !== "critical") active.severity = "watch";
+        }
+      });
+
+      return events.slice(0, 28);
+    }
+
+    function render() {
+      renderKpis();
+      renderEvents();
+      renderAuditTable();
+      renderNotice();
+      renderTraining();
+      scheduleWaveformLoad();
+      resizeAllCharts();
+      els.sampleCount.textContent = `${state.computed.length} samples`;
+      els.eventCount.textContent = String(state.events.length);
+      renderRunStatus();
+    }
+
+    function renderRunStatus() {
+      const quality = currentDataQuality();
+      if (quality.status === "connecting") {
+        els.runStatus.textContent = "Connecting";
+        els.runStatus.className = "status-pill amber";
+        return;
+      }
+      if (quality.status === "stale") {
+        els.runStatus.textContent = "Stale";
+        els.runStatus.className = "status-pill amber";
+        return;
+      }
+      if (quality.status === "disconnected") {
+        els.runStatus.textContent = "Disconnected";
+        els.runStatus.className = "status-pill red";
+        return;
+      }
+      const latest = state.computed[state.computed.length - 1];
+      if (!state.events.length && latest?.autoCorrected) {
+        els.runStatus.textContent = "Auto-correct";
+        els.runStatus.className = "status-pill amber";
+        return;
+      }
+      els.runStatus.textContent = state.events.some((event) => event.severity === "critical") ? "Review" : "Ready";
+      els.runStatus.className = state.events.some((event) => event.severity === "critical") ? "status-pill red" : "status-pill green";
+    }
+
+    function renderKpis() {
+      const row = state.computed[state.selectedIndex] || state.computed[state.computed.length - 1];
+      if (!row) return;
+      const quality = currentDataQuality();
+      const currentFlowUnknown = shouldHideCurrentFlow(row, quality);
+      els.kpiTemp.textContent = `${row.temperatureC.toFixed(1)} C`;
+      els.kpiRaw.textContent = `${row.rawGpm.toFixed(3)} GPM`;
+      els.kpiRawM3h.textContent = currentFlowUnknown ? `${row.rawFrM3h.toFixed(3)} m3/h last sample` : `${row.rawFrM3h.toFixed(3)} m3/h`;
+      els.kpiCorrected.textContent = `${row.correctedGpm.toFixed(3)} GPM`;
+      els.kpiCorrectedM3h.textContent = currentFlowUnknown ? `${row.correctedFrM3h.toFixed(3)} m3/h last sample` : `${row.correctedFrM3h.toFixed(3)} m3/h`;
+      els.kpiPublished.textContent = currentFlowUnknown ? "-- GPM" : `${row.displayedGpm.toFixed(3)} GPM`;
+      els.kpiPublishedM3h.textContent = currentFlowUnknown
+        ? `last ${row.displayedGpm.toFixed(3)} GPM; ${quality.shortLabel}`
+        : `${row.displayedFrM3h.toFixed(3)} m3/h displayed`;
+      els.kpiRisk.textContent = currentFlowUnknown ? "Frozen" : `${Math.round(row.phantomProbability * 100)}%`;
+    }
+
+    function renderTraining() {
+      const row = state.computed[state.selectedIndex] || state.computed[state.computed.length - 1];
+      const training = row?.training || null;
+      const quality = currentDataQuality();
+      els.trainingStatus.textContent = quality.trainingStatus;
+      els.trainingStatus.className = quality.status === "live" || quality.status === "demo" ? "status-pill green" : quality.status === "disconnected" ? "status-pill red" : "status-pill amber";
+      els.trainUpdates.textContent = training ? `${training.updates ?? 0} / ${training.total_updates ?? 0}` : "--";
+      els.trainStable.textContent = training?.stable_ratio === undefined ? "--" : `${Math.round(training.stable_ratio * 100)}%`;
+      els.trainFreeze.textContent = quality.freezeReason || training?.freeze_reason || "--";
+      els.dataQuality.textContent = quality.label;
+      els.lastSampleAge.textContent = quality.ageText;
+      if (!state.liveSource) {
+        els.liveSource.textContent = state.samples.some((sample) => sample.id?.startsWith("live-")) ? "disconnected" : "local demo";
+      }
+    }
+
+    function refreshLiveQuality() {
+      if (!state.liveSource && !state.samples.some((sample) => sample.id?.startsWith("live-"))) return;
+      const quality = currentDataQuality();
+      const key = `${quality.status}:${Math.floor((quality.ageMs || 0) / 1000)}`;
+      if (key === state.lastQualityRenderKey) return;
+      state.lastQualityRenderKey = key;
+      renderKpis();
+      renderTraining();
+      renderNotice();
+      renderRunStatus();
+    }
+
+    function currentDataQuality() {
+      const hasLiveSamples = state.samples.some((sample) => sample.id?.startsWith("live-"));
+      if (!state.liveSource && !hasLiveSamples) {
+        return {
+          status: "demo",
+          label: "local demo",
+          shortLabel: "local demo",
+          trainingStatus: "Demo",
+          ageText: "--",
+          ageMs: 0,
+          freezeReason: "",
+        };
+      }
+      if (!state.liveLastFrameAtMs) {
+        return {
+          status: state.liveSource ? "connecting" : "disconnected",
+          label: state.liveSource ? "connecting, no frame yet" : "disconnected, no frame",
+          shortLabel: state.liveSource ? "waiting for data" : "disconnected",
+          trainingStatus: state.liveSource ? "Connecting" : "Disconnected",
+          ageText: "--",
+          ageMs: 0,
+          freezeReason: "waiting_for_data",
+        };
+      }
+      const ageMs = Math.max(0, Date.now() - state.liveLastFrameAtMs);
+      if (!state.liveSource || (!state.liveConnected && ageMs > LIVE_STALE_AFTER_MS) || ageMs > LIVE_DISCONNECTED_AFTER_MS) {
+        return {
+          status: "disconnected",
+          label: "disconnected, current flow unknown",
+          shortLabel: "disconnected",
+          trainingStatus: "Disconnected",
+          ageText: formatDuration(ageMs),
+          ageMs,
+          freezeReason: "data_gap_learning_frozen",
+        };
+      }
+      if (ageMs > LIVE_STALE_AFTER_MS) {
+        return {
+          status: "stale",
+          label: "stale, current flow unknown",
+          shortLabel: "stale data",
+          trainingStatus: "Stale",
+          ageText: formatDuration(ageMs),
+          ageMs,
+          freezeReason: "stale_data_learning_frozen",
+        };
+      }
+      return {
+        status: "live",
+        label: "live, fresh frames",
+        shortLabel: "live",
+        trainingStatus: "Live",
+        ageText: formatDuration(ageMs),
+        ageMs,
+        freezeReason: "",
+      };
+    }
+
+    function shouldHideCurrentFlow(row, quality) {
+      return Boolean(
+        row &&
+        row.index === state.computed.length - 1 &&
+        (quality.status === "stale" || quality.status === "disconnected" || quality.status === "connecting")
+      );
+    }
+
+    function renderEvents() {
+      els.eventList.innerHTML = "";
+      if (!state.events.length) {
+        els.eventList.innerHTML = `<div class="empty">${t("noCustomerNotifications")}</div>`;
+        return;
+      }
+      const fragment = document.createDocumentFragment();
+      state.events.forEach((eventItem) => {
+        const row = state.computed[eventItem.index];
+        const div = document.createElement("div");
+        div.className = "event";
+        div.dataset.severity = eventItem.severity;
+        div.innerHTML = `
+          <div class="event-head">
+            <div class="event-title">${eventTitle(eventItem)}</div>
+            <div class="event-time">${formatTime(row.timestamp)}</div>
+          </div>
+          <div class="event-message">${eventMessage(eventItem, row)}</div>
+          ${eventItem.kind === "gap"
+            ? `<div class="event-message">${t("gapFrozen")}</div>`
+            : `<div class="event-actions">
+                <button class="confirm-zero" data-label="zero" data-index="${row.index}">Zero flow</button>
+                <button class="confirm-event" data-label="event" data-index="${row.index}">Event flow</button>
+                <button class="confirm-unsure icon" data-label="unsure" data-index="${row.index}" title="${state.lang === "en" ? "Unsure" : "不确定"}">?</button>
+              </div>`}
+        `;
+        div.addEventListener("click", (evt) => {
+          const labelButton = evt.target.closest("button[data-label]");
+          if (labelButton) {
+            setUserLabel(Number(labelButton.dataset.index), labelButton.dataset.label);
+            return;
+          }
+          selectIndex(row.index);
+        });
+        fragment.appendChild(div);
+      });
+      els.eventList.appendChild(fragment);
+    }
+
+    function eventTitle(eventItem) {
+      if (eventItem.kind === "gap") return t("gapTitle");
+      if (eventItem.kind === "flow_review") return t("flowReviewTitle");
+      if (eventItem.kind === "event") return t("eventTitle");
+      return t("reviewTitle");
+    }
+
+    function eventMessage(eventItem, row) {
+      if (eventItem.kind === "gap") {
+        return t("gapEvent", { duration: formatDuration(row.sourceGapMs) });
+      }
+      if (eventItem.kind === "event") {
+        return t("eventMessage", { event: pct(eventItem.maxEvent), displayed: formatFlow(row.displayedFrM3h, row.displayedGpm), corrected: formatFlow(row.correctedFrM3h, row.correctedGpm) });
+      }
+      if (eventItem.kind === "flow_review") {
+        return t("flowReviewMessage", { phantom: pct(eventItem.maxPhantom), event: pct(eventItem.maxEvent), corrected: formatFlow(row.correctedFrM3h, row.correctedGpm) });
+      }
+      return t("genericReview");
+    }
+
+    function renderAuditTable() {
+      const rows = downsampleForTable(state.computed, 80);
+      els.auditRows.innerHTML = "";
+      const fragment = document.createDocumentFragment();
+      rows.forEach((row) => {
+        const tr = document.createElement("tr");
+        if (row.index === state.selectedIndex) tr.classList.add("selected");
+        tr.innerHTML = `
+          <td>${formatTime(row.timestamp)}</td>
+          <td class="state-cell ${stateClass(row.stateName)}">${stateLabel(row.stateName)}${row.userLabel ? " / " + row.userLabel : ""}</td>
+          <td class="state-cell ${row.dataGap ? "state-gap" : "state-zero"}">${qualityLabel(row)}</td>
+          <td>${row.temperatureC.toFixed(2)}</td>
+          <td>${row.tempRate.toFixed(3)}</td>
+          <td>${row.otsTempC === null ? "--" : row.otsTempC.toFixed(2)}</td>
+          <td>${formatMaybe(row.diagnoseDtNs, 3)}</td>
+          <td>${formatMaybe(row.diagnoseTtNs, 3)}</td>
+          <td>${row.rawFsMps.toFixed(4)}</td>
+          <td>${row.rawFrM3h.toFixed(3)}</td>
+          <td>${row.rawGpm.toFixed(3)}</td>
+          <td>${row.zeroEstimateFs.toFixed(4)}</td>
+          <td>${row.correctedFrM3h.toFixed(3)}</td>
+          <td>${row.correctedGpm.toFixed(3)}</td>
+          <td>${row.publishedFrM3h.toFixed(3)}</td>
+          <td>${row.displayedGpm.toFixed(3)}</td>
+          <td>${pct(row.phantomProbability)}</td>
+          <td>${pct(row.eventProbability)}</td>
+          <td>${row.templateCorr.toFixed(5)}</td>
+        `;
+        tr.addEventListener("click", () => selectIndex(row.index));
+        fragment.appendChild(tr);
+      });
+      els.auditRows.appendChild(fragment);
+    }
+
+    function renderNotice() {
+      const row = state.computed[state.selectedIndex];
+      if (!row) {
+        els.noticeText.value = "";
+        return;
+      }
+      const quality = currentDataQuality();
+      els.selectionLabel.textContent = shouldHideCurrentFlow(row, quality)
+        ? `${formatTime(row.timestamp)} / ${stateLabel(row.stateName)} / ${quality.trainingStatus}`
+        : `${formatTime(row.timestamp)} / ${stateLabel(row.stateName)}`;
+      els.noticeText.value = buildCustomerNotice(row);
+    }
+
+    function buildCustomerNotice(row) {
+      const quality = currentDataQuality();
+      if (shouldHideCurrentFlow(row, quality)) {
+        return [
+          t("staleNoticeTitle"),
+          `${t("lastFrameTime")}：${formatTime(row.timestamp)}，${t("age")}：${quality.ageText}`,
+          `${t("lastDisplayed")}：${formatFlow(row.displayedFrM3h, row.displayedGpm)}`,
+          `${t("connectionState")}：${quality.label}`,
+          t("handlingNoZero"),
+        ].join("\n");
+      }
+      if (row.stateName === "data_gap") {
+        return [
+          t("gapNoticeTitle"),
+          `${t("time")}：${formatTime(row.timestamp)}`,
+          `${t("gapLength")}：${formatDuration(row.sourceGapMs)}`,
+          `${t("recoveredFrame")}：raw=${formatFlow(row.rawFrM3h, row.rawGpm)}，corrected=${formatFlow(row.correctedFrM3h, row.correctedGpm)}`,
+          t("handlingGap"),
+        ].join("\n");
+      }
+      if (row.stateName === "phantom_risk") {
+        return [
+          t("phantomNoticeTitle"),
+          `${t("time")}：${formatTime(row.timestamp)}`,
+          `${t("currentTempLine")}：${row.temperatureC.toFixed(1)} C，${t("tempRateLine")}：${row.tempRate.toFixed(2)} C/min`,
+          `OTS：${formatOts(row)}`,
+          `diagnose dt=${formatMaybe(row.diagnoseDtNs, 3)} ns，tt=${formatMaybe(row.diagnoseTtNs, 3)} ns`,
+          `${t("waveformEvidenceLine")}：${formatWaveformEvidence(row)}`,
+          `raw=${formatFlow(row.rawFrM3h, row.rawGpm)}，corrected=${formatFlow(row.correctedFrM3h, row.correctedGpm)}`,
+          `${t("displayedLine")}=${formatFlow(row.displayedFrM3h, row.displayedGpm)}`,
+          `fs zero=${row.zeroEstimateFs.toFixed(4)} m/s，zero=${formatFlow(row.zeroEstimateFrM3h, row.zeroEstimateGpm)}`,
+          `${t("systemJudgement")}：${state.lang === "en" ? "suspected zero drift or phantom flow" : "疑似零点漂移或 phantom flow"}，${t("risk")} ${pct(row.phantomProbability)}。`,
+          t("handlingPhantom"),
+        ].join("\n");
+      }
+      if (row.stateName === "event_flow") {
+        return [
+          t("eventNoticeTitle"),
+          `${t("time")}：${formatTime(row.timestamp)}`,
+          `diagnose dt=${formatMaybe(row.diagnoseDtNs, 3)} ns，tt=${formatMaybe(row.diagnoseTtNs, 3)} ns`,
+          `${t("waveformEvidenceLine")}：${formatWaveformEvidence(row)}`,
+          `${t("correctedFlowLine")}：${formatFlow(row.correctedFrM3h, row.correctedGpm)}`,
+          `${t("displayedLine")}：${formatFlow(row.displayedFrM3h, row.displayedGpm)}`,
+          `${t("correctedFsLine")}：${row.correctedFsMps.toFixed(4)} m/s`,
+          `${t("systemJudgement")}：${t("eventProbabilityLine")} ${pct(row.eventProbability)}。`,
+          t("handlingEvent"),
+        ].join("\n");
+      }
+      if (row.stateName === "zero_flow") {
+        return [
+          t("zeroNoticeTitle"),
+          `${t("time")}：${formatTime(row.timestamp)}`,
+          `${t("zeroEstimateLine")}：fs=${row.zeroEstimateFs.toFixed(4)} m/s，${formatFlow(row.zeroEstimateFrM3h, row.zeroEstimateGpm)}`,
+          t("handlingZero"),
+        ].join("\n");
+      }
+      return [
+        t("reviewNoticeTitle"),
+        `${t("time")}：${formatTime(row.timestamp)}`,
+        `raw=${formatFlow(row.rawFrM3h, row.rawGpm)}，corrected=${formatFlow(row.correctedFrM3h, row.correctedGpm)}`,
+        `${t("waveformEvidenceLine")}：${formatWaveformEvidence(row)}`,
+        `${t("displayedLine")}=${formatFlow(row.displayedFrM3h, row.displayedGpm)}`,
+        `fs raw=${row.rawFsMps.toFixed(4)} m/s，fs corrected=${row.correctedFsMps.toFixed(4)} m/s`,
+        `phantom=${pct(row.phantomProbability)}，event=${pct(row.eventProbability)}。`,
+      ].join("\n");
+    }
+
+    function selectIndex(index) {
+      state.selectedIndex = index;
+      renderKpis();
+      renderAuditTable();
+      renderNotice();
+      scheduleWaveformLoad(true);
+      resizeAllCharts();
+    }
+
+    function selectedRow() {
+      return state.computed[state.selectedIndex] || state.computed[state.computed.length - 1] || null;
+    }
+
+    function scheduleWaveformLoad(force = false) {
+      const row = selectedRow();
+      if (!row) {
+        state.waveform = { status: "idle", key: "" };
+        renderWaveformPanel();
+        return;
+      }
+      if (!row.serial && !String(row.id || "").startsWith("live-")) {
+        state.waveform = { status: "missing", key: "", message: t("waveformLiveOnly") };
+        renderWaveformPanel();
+        return;
+      }
+      const key = waveformKey(row);
+      const activeKey = state.waveform.pendingKey || state.waveform.key;
+      if (!force && activeKey === key && ["ready", "loading", "updating"].includes(state.waveform.status)) return;
+      clearTimeout(state.waveformTimer);
+      state.waveformTimer = setTimeout(() => loadWaveformForRow(row, key, force), 120);
+    }
+
+    function waveformKey(row) {
+      return `${row.serial || "meter"}:${row.timestamp.toISOString()}:${row.index}`;
+    }
+
+    async function loadWaveformForRow(row, key, force = false) {
+      const previousWaveform = state.waveform;
+      if (previousWaveform?.samples?.length) {
+        state.waveform = { ...previousWaveform, status: "updating", pendingKey: key, pendingRowIndex: row.index };
+      } else {
+        state.waveform = { status: "loading", key, rowIndex: row.index };
+      }
+      renderWaveformPanel();
+      try {
+        const now = Date.now();
+        if (force || !state.waveformCsvText || now - state.waveformCsvLoadedAtMs > 2500) {
+          const response = await fetch(`${WAVEFORM_CSV_PATH}?t=${now}`, { cache: "no-store" });
+          if (!response.ok) throw new Error(`waveform CSV ${response.status}`);
+          state.waveformCsvText = await response.text();
+          state.waveformCsvLoadedAtMs = now;
+        }
+        const record = parseWaveformCsv(state.waveformCsvText, row);
+        if (selectedRow() && waveformKey(selectedRow()) !== key) return;
+        if (!record) {
+          state.waveform = previousWaveform?.samples?.length
+            ? { ...previousWaveform, status: "stale", key: previousWaveform.key, message: t("waveformNoMatchKeep") }
+            : { status: "missing", key, rowIndex: row.index, message: t("waveformNoMatch") };
+        } else {
+          state.waveform = { status: "ready", key, rowIndex: row.index, ...record };
+        }
+      } catch (error) {
+        if (selectedRow() && waveformKey(selectedRow()) !== key) return;
+        state.waveform = previousWaveform?.samples?.length
+          ? { ...previousWaveform, status: "stale", key: previousWaveform.key, message: t("waveformReadFailed", { message: error.message }) }
+          : { status: "error", key, rowIndex: row.index, message: error.message };
+      }
+      renderWaveformPanel();
+    }
+
+    function parseWaveformCsv(text, targetRow) {
+      const lines = text.split(/\r?\n/).filter(Boolean);
+      if (lines.length < 2) return null;
+      const header = lines[0].split(",");
+      const timestampIdx = header.indexOf("timestamp");
+      const serialIdx = header.indexOf("serial");
+      const labelIdx = header.indexOf("label");
+      const sqIdx = header.indexOf("sq");
+      const nIdx = header.indexOf("n_samples");
+      const sampleStart = header.indexOf("s_0");
+      if (timestampIdx < 0 || sampleStart < 0) return null;
+
+      const targetMs = targetRow.timestamp.getTime();
+      let best = null;
+      for (let i = 1; i < lines.length; i += 1) {
+        const cols = lines[i].split(",");
+        if (serialIdx >= 0 && targetRow.serial && cols[serialIdx] && cols[serialIdx] !== targetRow.serial) continue;
+        const rowTime = parseTimestamp(cols[timestampIdx], i);
+        const deltaMs = Math.abs(rowTime.getTime() - targetMs);
+        if (!best || deltaMs < best.deltaMs) best = { cols, rowTime, deltaMs };
+      }
+      if (!best) return null;
+
+      const n = Math.min(numberOr(best.cols[nIdx], header.length - sampleStart), header.length - sampleStart);
+      const samples = [];
+      for (let i = 0; i < n; i += 1) {
+        const value = Number(best.cols[sampleStart + i]);
+        if (Number.isFinite(value)) samples.push(value);
+      }
+      if (samples.length < 8) return null;
+      return analyzeWaveformSamples({
+        samples,
+        timestamp: best.rowTime,
+        deltaMs: best.deltaMs,
+        serial: serialIdx >= 0 ? best.cols[serialIdx] : "",
+        label: labelIdx >= 0 ? best.cols[labelIdx] : "",
+        sq: sqIdx >= 0 ? Number(best.cols[sqIdx]) : null,
+      });
+    }
+
+    function analyzeWaveformSamples(record) {
+      const samples = record.samples;
+      const baselineSlice = samples.slice(0, Math.min(WAVEFORM_BASELINE_SAMPLES, samples.length));
+      const baseline = median(baselineSlice);
+      const gateStart = clamp(WAVEFORM_GATE_START, 0, samples.length - 1);
+      const gateEnd = clamp(WAVEFORM_GATE_END, gateStart + 1, samples.length);
+      const gate = samples.slice(gateStart, gateEnd).map((value) => value - baseline);
+      const noise = baselineSlice.map((value) => value - baseline);
+      let peakIndex = gateStart;
+      let peakAbs = 0;
+      for (let i = gateStart; i < gateEnd; i += 1) {
+        const abs = Math.abs(samples[i] - baseline);
+        if (abs > peakAbs) {
+          peakAbs = abs;
+          peakIndex = i;
+        }
+      }
+      return {
+        ...record,
+        baseline,
+        gateStart,
+        gateEnd,
+        peakIndex,
+        peakAbs,
+        noiseRmsWaveform: rms(noise),
+        gateRmsWaveform: rms(gate),
+        ptpWaveform: Math.max(...samples) - Math.min(...samples),
+      };
+    }
+
+    function renderWaveformPanel() {
+      const row = selectedRow();
+      const waveform = state.waveform || { status: "idle" };
+      if (!row) {
+        els.waveformMeta.textContent = t("noSample");
+        els.waveformStats.innerHTML = "";
+      } else if (waveform.samples?.length) {
+        const suffix = waveform.status === "updating"
+          ? "，updating"
+          : waveform.status === "stale"
+            ? "，stale"
+            : "";
+        els.waveformMeta.textContent = `${formatTime(waveform.timestamp)} waveform，match ${formatDuration(waveform.deltaMs)}，${waveform.samples.length} samples${suffix}`;
+        renderWaveformStats(row, waveform);
+      } else if (waveform.status === "loading") {
+        els.waveformMeta.textContent = t("loadingWaveform");
+        renderWaveformStats(row, null);
+      } else {
+        els.waveformMeta.textContent = waveform.message || t("waitingWaveform");
+        renderWaveformStats(row, null);
+      }
+      redrawChart(els.waveformChart, drawWaveformChart);
+    }
+
+    function renderWaveformStats(row, waveform) {
+      const stats = [
+        ["template", row.templateCorr?.toFixed(5) ?? "--"],
+        ["SNR", `${formatMaybe(row.snrDb, 2)} dB`],
+        ["noise", `${formatMaybe(row.noiseRms, 3)} V`],
+        ["gate RMS", `${formatMaybe(row.gateRms, 3)} V`],
+        ["peak offset", `${formatMaybe(row.peakOffsetSamples, 1)} samples`],
+        ["clip low/high", `${pct(row.lowClipRatio || 0)} / ${pct(row.highClipRatio || 0)}`],
+      ];
+      if (waveform) {
+        stats.push(
+          ["baseline", `${waveform.baseline.toFixed(3)} V`],
+          ["wave peak", `${waveform.peakAbs.toFixed(3)} V @ ${waveform.peakIndex}`],
+          ["wave RMS", `${waveform.gateRmsWaveform.toFixed(3)} V`],
+        );
+      }
+      els.waveformStats.innerHTML = stats.map(([label, value]) => `
+        <div class="waveform-stat">
+          <span>${label}</span>
+          <strong>${value}</strong>
+        </div>
+      `).join("");
+    }
+
+    function setUserLabel(index, label) {
+      const row = state.computed[index];
+      if (!row) return;
+      state.labels[row.id] = label;
+      saveLabels();
+      recompute();
+      selectIndex(index);
+      showToast(t("markedLabel", { time: formatTime(row.timestamp), label }));
+    }
+
+    function generateDemoData(scenario) {
+      const rows = [];
+      const start = new Date("2026-05-28T08:00:00");
+      const count = 240;
+      const demoAreaM2 = pipeGeometry(26.67, 2.87).areaM2;
+      let seed = 42 + scenario.length * 17;
+      const rand = () => {
+        seed = (seed * 1664525 + 1013904223) >>> 0;
+        return seed / 4294967296;
+      };
+
+      for (let i = 0; i < count; i += 1) {
+        const timestamp = new Date(start.getTime() + i * 2 * 60000);
+        const x = i / (count - 1);
+        let temperatureC = 22;
+        if (scenario === "heating") {
+          temperatureC = 21.4 + 8.8 * smoothstep(x) + 0.35 * Math.sin(i / 8);
+        } else if (scenario === "cooling") {
+          temperatureC = 31.2 - 8.6 * smoothstep(x) + 0.30 * Math.sin(i / 7);
+        } else {
+          temperatureC = 22.2 + 7.0 * smoothstep(Math.min(x * 1.8, 1)) - 4.2 * smoothstep(Math.max((x - 0.55) * 2.2, 0)) + 0.28 * Math.sin(i / 9);
+        }
+
+        let trueFrM3h = 0;
+        if (i > 50 && i < 67) trueFrM3h = 0.46 + 0.05 * Math.sin(i / 2);
+        if (i > 130 && i < 150) trueFrM3h = 0.038 + 0.007 * Math.sin(i / 3);
+        if (scenario !== "cooling" && i > 182 && i < 195) trueFrM3h = 0.22 + 0.025 * Math.sin(i / 2);
+
+        const prevTemp = i === 0 ? temperatureC : rows[i - 1].temperatureC;
+        const tempRate = i === 0 ? 0 : (temperatureC - prevTemp) / 2;
+        const trueZeroDriftFs = 0.0020 * (temperatureC - 22) + (tempRate >= 0 ? 0.0042 : 0.0060) * tempRate;
+        const trueZeroDriftFr = fsToFr(trueZeroDriftFs, demoAreaM2);
+        const phantomPulseFr = (i > 92 && i < 116 ? 0.030 * Math.sin((i - 92) / 24 * Math.PI) : 0) + (i > 205 && i < 224 ? -0.026 * Math.sin((i - 205) / 19 * Math.PI) : 0);
+        const noiseFr = (rand() - 0.5) * 0.010;
+        const rawFrM3h = trueFrM3h + trueZeroDriftFr + phantomPulseFr + noiseFr;
+        const rawFsMps = frToFs(rawFrM3h, demoAreaM2);
+        const otsTempC = temperatureC + 2.8 + Math.abs(tempRate) * 8 + Math.abs(phantomPulseFr) * 1.5 + (rand() - 0.5) * 0.35;
+        const driftLoad = Math.abs(tempRate) + Math.abs(trueZeroDriftFs) * 18;
+        const templateCorr = clamp(0.9982 - driftLoad * 0.013 - (trueFrM3h > 0.15 ? 0.0004 : 0) + (rand() - 0.5) * 0.0008, 0.989, 0.9992);
+        const noiseRms = clamp(0.245 + Math.abs(tempRate) * 0.18 + Math.abs(phantomPulseFr) * 0.50 + (rand() - 0.5) * 0.018, 0.22, 0.33);
+        const gateRms = clamp(1.06 + Math.abs(trueFrM3h) * 0.15 + Math.abs(trueZeroDriftFs) * 8 + (rand() - 0.5) * 0.035, 0.94, 1.25);
+        const snrDb = clamp(20 * Math.log10(gateRms / Math.max(noiseRms, 0.001)), 10.2, 14.8);
+
+        rows.push({
+          id: `demo-${scenario}-${i}`,
+          timestamp,
+          temperatureC,
+          rawFsMps,
+          rawFrM3h,
+          otsTempC,
+          trueFsMps: frToFs(trueFrM3h, demoAreaM2),
+          trueFrM3h,
+          templateCorr,
+          noiseRms,
+          gateRms,
+          snrDb,
+          baselineV: null,
+          peakAbsGateV: gateRms * 1.58,
+          firstArrivalOffsetSamples: -101 + (rand() - 0.5) * 4,
+          peakOffsetSamples: -99 + (rand() - 0.5) * 4,
+          lowClipRatio: clamp(0.035 + Math.abs(phantomPulseFr) * 0.10 + (rand() - 0.5) * 0.012, 0, 0.09),
+          highClipRatio: 0,
+          ptpV: gateRms * 2.9,
+        });
+      }
+      return rows;
+    }
+
+    function handleCsvUpload(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        try {
+          const parsed = parseCsv(reader.result);
+          if (!parsed.length) throw new Error("CSV does not contain usable rows");
+          state.samples = parsed;
+          state.selectedIndex = null;
+          recompute();
+          showToast(t("toastImportOk", { count: parsed.length }));
+        } catch (error) {
+          showToast(t("toastImportFailed", { message: error.message }));
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function parseCsv(text) {
+      const lines = text.trim().split(/\r?\n/).filter(Boolean);
+      const headers = splitCsvLine(lines.shift()).map((header) => header.trim());
+      const idx = Object.fromEntries(headers.map((header, i) => [header.toLowerCase(), i]));
+      const getIndex = (...names) => names.map((name) => idx[name.toLowerCase()]).find((i) => i !== undefined);
+      const tsIdx = getIndex("timestamp", "time", "datetime");
+      const tempIdx = getIndex("temperature_c", "temp_c", "temperature", "temp", "ots", "ots_temp_c", "onboard_temperature_c", "onboard_temp_c");
+      const rawFrIdx = getIndex("raw_fr_m3h", "fr_m3h", "fr", "flow_m3h", "raw_flow_m3h");
+      const rawFsIdx = getIndex("raw_fs_mps", "fs_mps", "fs", "flow_speed_mps", "raw_flow_speed_mps");
+      const rawLpmIdx = getIndex("raw_flow_lpm", "flow_lpm");
+      const otsIdx = getIndex("ots", "ots_temp_c", "onboard_temperature_c", "onboard_temp_c");
+      if (tempIdx === undefined || (rawFrIdx === undefined && rawFsIdx === undefined && rawLpmIdx === undefined)) {
+        throw new Error(t("csvRequired"));
+      }
+      const templateIdx = getIndex("template_corr", "corr");
+      const noiseIdx = getIndex("noise_rms_v", "noise_rms");
+      const gateIdx = getIndex("gate_rms_v", "gate_rms");
+      const snrIdx = getIndex("snr_db", "snr");
+
+      return lines.map((line, i) => {
+        const cols = splitCsvLine(line);
+        const timestamp = tsIdx === undefined ? new Date(Date.now() + i * 120000) : parseTimestamp(cols[tsIdx], i);
+        const temperatureC = Number(cols[tempIdx]);
+        const areaM2 = pipeGeometry(Number(els.pipeOuterDiameter.value), Number(els.pipeWallThickness.value)).areaM2;
+        let rawFrM3h = rawFrIdx === undefined ? NaN : Number(cols[rawFrIdx]);
+        let rawFsMps = rawFsIdx === undefined ? NaN : Number(cols[rawFsIdx]);
+        if (!Number.isFinite(rawFrM3h) && rawLpmIdx !== undefined) rawFrM3h = Number(cols[rawLpmIdx]) * 0.06;
+        if (!Number.isFinite(rawFsMps) && Number.isFinite(rawFrM3h)) rawFsMps = frToFs(rawFrM3h, areaM2);
+        if (!Number.isFinite(rawFrM3h) && Number.isFinite(rawFsMps)) rawFrM3h = fsToFr(rawFsMps, areaM2);
+        if (!Number.isFinite(temperatureC) || !Number.isFinite(rawFsMps) || !Number.isFinite(rawFrM3h)) return null;
+        const noiseRms = numberOr(cols[noiseIdx], 0.25);
+        const gateRms = numberOr(cols[gateIdx], 1.05);
+        const snrDb = numberOr(cols[snrIdx], 20 * Math.log10(gateRms / Math.max(noiseRms, 0.001)));
+        return {
+          id: `csv-${fileSafeId(timestamp.toISOString())}-${i}`,
+          timestamp,
+          temperatureC,
+          rawFsMps,
+          rawFrM3h,
+          otsTempC: otsIdx === undefined ? null : numberOr(cols[otsIdx], null),
+          trueFsMps: 0,
+          trueFrM3h: 0,
+          templateCorr: numberOr(cols[templateIdx], 0.9965),
+          noiseRms,
+          gateRms,
+          snrDb,
+        };
+      }).filter(Boolean);
+    }
+
+    function splitCsvLine(line) {
+      const out = [];
+      let value = "";
+      let quoted = false;
+      for (let i = 0; i < line.length; i += 1) {
+        const ch = line[i];
+        if (ch === '"' && line[i + 1] === '"') {
+          value += '"';
+          i += 1;
+        } else if (ch === '"') {
+          quoted = !quoted;
+        } else if (ch === "," && !quoted) {
+          out.push(value);
+          value = "";
+        } else {
+          value += ch;
+        }
+      }
+      out.push(value);
+      return out;
+    }
+
+    function parseTimestamp(value, index) {
+      const parsed = new Date(value);
+      if (!Number.isNaN(parsed.getTime())) return parsed;
+      return new Date(Date.now() + index * 120000);
+    }
+
+    function drawTempChart(ctx, w, h) {
+      const rows = state.computed;
+      if (!rows.length) return;
+      drawAxes(ctx, w, h);
+      line(ctx, rows.map((row, i) => [i, row.temperatureC]), w, h, range(rows, "temperatureC"), color.temp, 2);
+      line(ctx, rows.map((row, i) => [i, row.tempRate]), w, h, symmetricRange(rows, "tempRate"), color.rate, 1.8);
+      drawSelected(ctx, w, h, rows.length);
+      drawTimeHover(ctx, w, h, rows.length, [
+        { value: (row) => row.temperatureC, range: range(rows, "temperatureC"), color: color.temp },
+        { value: (row) => row.tempRate, range: symmetricRange(rows, "tempRate"), color: color.rate },
+      ]);
+    }
+
+    function drawFlowChart(ctx, w, h) {
+      const rows = state.computed;
+      if (!rows.length) return;
+      const values = rows.flatMap((row) => [row.rawFrM3h, row.zeroEstimateFrM3h, row.correctedFrM3h, row.publishedFrM3h]);
+      const yRange = paddedRange(values);
+      drawAxes(ctx, w, h);
+      drawPhantomBands(ctx, rows, w, h);
+      line(ctx, rows.map((row, i) => [i, row.rawFrM3h]), w, h, yRange, color.raw, 1.5);
+      line(ctx, rows.map((row, i) => [i, row.zeroEstimateFrM3h]), w, h, yRange, color.zero, 2);
+      line(ctx, rows.map((row, i) => [i, row.correctedFrM3h]), w, h, yRange, color.corrected, 2);
+      line(ctx, rows.map((row, i) => [i, row.publishedFrM3h]), w, h, yRange, color.published, 1.8);
+      drawZeroLine(ctx, w, h, yRange);
+      drawSelected(ctx, w, h, rows.length);
+      drawTimeHover(ctx, w, h, rows.length, [
+        { value: (row) => row.rawFrM3h, range: yRange, color: color.raw },
+        { value: (row) => row.zeroEstimateFrM3h, range: yRange, color: color.zero },
+        { value: (row) => row.correctedFrM3h, range: yRange, color: color.corrected },
+        { value: (row) => row.publishedFrM3h, range: yRange, color: color.published },
+      ]);
+    }
+
+    function drawDisplayChart(ctx, w, h) {
+      const rows = state.computed;
+      if (!rows.length) return;
+      const values = rows.map((row) => row.displayedGpm);
+      const yRange = paddedRange(values.concat([0]));
+      drawAxes(ctx, w, h);
+      drawPhantomBands(ctx, rows, w, h);
+      line(ctx, rows.map((row, i) => [i, row.displayedGpm]), w, h, yRange, color.published, 2.2);
+      drawZeroLine(ctx, w, h, yRange);
+      drawSelected(ctx, w, h, rows.length);
+      drawTimeHover(ctx, w, h, rows.length, [
+        { value: (row) => row.displayedGpm, range: yRange, color: color.published },
+      ]);
+    }
+
+    function drawProbabilityChart(ctx, w, h) {
+      const rows = state.computed;
+      if (!rows.length) return;
+      const yRange = [0, 1];
+      drawAxes(ctx, w, h);
+      line(ctx, rows.map((row, i) => [i, row.phantomProbability]), w, h, yRange, color.phantom, 2);
+      line(ctx, rows.map((row, i) => [i, row.eventProbability]), w, h, yRange, color.event, 2);
+      line(ctx, rows.map((row, i) => [i, row.zeroProbability]), w, h, yRange, color.zeroProb, 2);
+      drawSelected(ctx, w, h, rows.length);
+      drawTimeHover(ctx, w, h, rows.length, [
+        { value: (row) => row.phantomProbability, range: yRange, color: color.phantom },
+        { value: (row) => row.eventProbability, range: yRange, color: color.event },
+        { value: (row) => row.zeroProbability, range: yRange, color: color.zeroProb },
+      ]);
+    }
+
+    function drawWaveformChart(ctx, w, h) {
+      const waveform = state.waveform || {};
+      if (!waveform.samples?.length) {
+        drawAxes(ctx, w, h);
+        drawCanvasMessage(ctx, w, h, waveform.status === "loading" ? t("waveformLoadingCanvas") : t("noWaveformCanvas"));
+        return;
+      }
+      const samples = waveform.samples;
+      const yRange = paddedRange(samples.concat([waveform.baseline]));
+      const pad = chartPad();
+      const plotW = w - pad.left - pad.right;
+      const plotH = h - pad.top - pad.bottom;
+      const xMax = Math.max(samples.length - 1, 1);
+      const xFor = (index) => pad.left + plotW * (index / xMax);
+
+      ctx.fillStyle = color.noise;
+      ctx.fillRect(xFor(0), pad.top, Math.max(1, xFor(Math.min(WAVEFORM_BASELINE_SAMPLES, samples.length - 1)) - xFor(0)), plotH);
+      ctx.fillStyle = color.gate;
+      ctx.fillRect(xFor(waveform.gateStart), pad.top, Math.max(1, xFor(waveform.gateEnd) - xFor(waveform.gateStart)), plotH);
+
+      drawAxes(ctx, w, h);
+      line(ctx, samples.map((value, i) => [i, value]), w, h, yRange, color.waveform, 1.35);
+      drawHorizontalValue(ctx, w, h, yRange, waveform.baseline, color.baseline);
+      drawVerticalIndex(ctx, w, h, samples.length, waveform.peakIndex, color.peak);
+
+      ctx.fillStyle = color.text;
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.fillText("noise/baseline", pad.left + 6, pad.top + 14);
+      ctx.fillText("gate", xFor(waveform.gateStart) + 6, pad.top + 14);
+      ctx.fillStyle = color.peak;
+      ctx.fillText(`peak ${waveform.peakIndex}`, Math.min(xFor(waveform.peakIndex) + 6, w - 82), h - pad.bottom - 8);
+      drawWaveformHover(ctx, w, h, yRange, samples.length);
+    }
+
+    function resizeAllCharts() {
+      charts.forEach(({ el, draw }) => redrawChart(el, draw));
+    }
+
+    function redrawChart(el, draw) {
+      const rect = el.getBoundingClientRect();
+      const ratio = window.devicePixelRatio || 1;
+      const width = Math.max(320, Math.floor(rect.width));
+      const height = Math.max(160, Math.floor(rect.height));
+      if (el.width !== Math.floor(width * ratio) || el.height !== Math.floor(height * ratio)) {
+        el.width = Math.floor(width * ratio);
+        el.height = Math.floor(height * ratio);
+      }
+      const ctx = el.getContext("2d");
+      ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+      draw(ctx, width, height);
+    }
+
+    function updateChartHover(el, draw, event) {
+      const rect = el.getBoundingClientRect();
+      const localX = event.clientX - rect.left;
+      const localY = event.clientY - rect.top;
+      const hover = buildChartHover(el.id, localX, localY, rect.width, rect.height);
+      if (!hover) {
+        state.hover = null;
+        hideChartTooltip();
+        redrawChart(el, draw);
+        return;
+      }
+      state.hover = hover;
+      showChartTooltip(hover.html, event.clientX, event.clientY);
+      redrawChart(el, draw);
+    }
+
+    function buildChartHover(chartId, localX, localY, w, h) {
+      const pad = chartPad();
+      if (localX < pad.left - 8 || localX > w - pad.right + 8 || localY < pad.top - 12 || localY > h - pad.bottom + 12) return null;
+      if (chartId === "waveformChart") return buildWaveformHover(chartId, localX, w);
+      const rows = state.computed;
+      if (!rows.length) return null;
+      const index = indexFromX(localX, rows.length, w);
+      const row = rows[index];
+      if (!row) return null;
+      return {
+        chartId,
+        index,
+        html: timeSeriesTooltip(chartId, row),
+      };
+    }
+
+    function buildWaveformHover(chartId, localX, w) {
+      const waveform = state.waveform || {};
+      if (!waveform.samples?.length) return null;
+      const index = indexFromX(localX, waveform.samples.length, w);
+      const value = waveform.samples[index];
+      const region = index < WAVEFORM_BASELINE_SAMPLES
+        ? "noise / baseline"
+        : index >= waveform.gateStart && index <= waveform.gateEnd
+          ? "gate"
+          : "outside gate";
+      return {
+        chartId,
+        sampleIndex: index,
+        html: tooltipHtml("Waveform sample", [
+          [`sample`, index],
+          [`voltage`, `${formatMaybe(value, 3)} V`],
+          [`baseline`, `${formatMaybe(waveform.baseline, 3)} V`],
+          [`region`, region],
+          [`peak`, `${formatMaybe(waveform.peakAbs, 3)} V @ ${waveform.peakIndex}`],
+        ]),
+      };
+    }
+
+    function timeSeriesTooltip(chartId, row) {
+      if (chartId === "tempChart") {
+        return tooltipHtml(formatTime(row.timestamp), [
+          ["temperature", `${row.temperatureC.toFixed(2)} C`],
+          ["OTS", row.otsTempC === null ? "--" : `${row.otsTempC.toFixed(2)} C`],
+          ["dT/dt", `${row.tempRate.toFixed(3)} C/min`],
+          ["diagnose dt", `${formatMaybe(row.diagnoseDtNs, 3)} ns`],
+          ["diagnose tt", `${formatMaybe(row.diagnoseTtNs, 3)} ns`],
+        ]);
+      }
+      if (chartId === "flowChart") {
+        return tooltipHtml(formatTime(row.timestamp), [
+          ["raw", `${row.rawFrM3h.toFixed(3)} m3/h`],
+          ["zero estimate", `${row.zeroEstimateFrM3h.toFixed(3)} m3/h`],
+          ["corrected", `${row.correctedFrM3h.toFixed(3)} m3/h`],
+          ["published", `${row.publishedFrM3h.toFixed(3)} m3/h`],
+          ["FS zero", `${row.zeroEstimateFs.toFixed(4)} m/s`],
+        ]);
+      }
+      if (chartId === "displayChart") {
+        return tooltipHtml(formatTime(row.timestamp), [
+          ["displayed", `${row.displayedGpm.toFixed(3)} GPM`],
+          ["displayed m3/h", `${row.displayedFrM3h.toFixed(3)} m3/h`],
+          ["corrected", `${row.correctedGpm.toFixed(3)} GPM`],
+          ["state", stateLabel(row.stateName)],
+        ]);
+      }
+      if (chartId === "probChart") {
+        return tooltipHtml(formatTime(row.timestamp), [
+          ["phantom", pct(row.phantomProbability)],
+          ["event", pct(row.eventProbability)],
+          ["zero", pct(row.zeroProbability)],
+          ["template", formatMaybe(row.templateCorr, 5)],
+          ["SNR", `${formatMaybe(row.snrDb, 2)} dB`],
+        ]);
+      }
+      return tooltipHtml(formatTime(row.timestamp), [["value", "--"]]);
+    }
+
+    function tooltipHtml(title, rows) {
+      return `<strong>${escapeHtml(title)}</strong>${rows.map(([label, value]) => `<div>${escapeHtml(label)}: ${escapeHtml(String(value))}</div>`).join("")}`;
+    }
+
+    function showChartTooltip(html, clientX, clientY) {
+      els.chartTooltip.innerHTML = html;
+      els.chartTooltip.classList.add("show");
+      const margin = 14;
+      const width = els.chartTooltip.offsetWidth || 220;
+      const height = els.chartTooltip.offsetHeight || 120;
+      let left = clientX + 12;
+      let top = clientY + 12;
+      if (left + width + margin > window.innerWidth) left = clientX - width - 12;
+      if (top + height + margin > window.innerHeight) top = clientY - height - 12;
+      els.chartTooltip.style.left = `${Math.max(margin, left)}px`;
+      els.chartTooltip.style.top = `${Math.max(margin, top)}px`;
+    }
+
+    function hideChartTooltip() {
+      els.chartTooltip.classList.remove("show");
+    }
+
+    function drawAxes(ctx, w, h) {
+      const pad = chartPad();
+      ctx.strokeStyle = color.grid;
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      for (let i = 0; i <= 4; i += 1) {
+        const y = pad.top + (h - pad.top - pad.bottom) * (i / 4);
+        ctx.moveTo(pad.left, y);
+        ctx.lineTo(w - pad.right, y);
+      }
+      ctx.stroke();
+    }
+
+    function line(ctx, points, w, h, yRange, stroke, width) {
+      if (points.length < 2) return;
+      const pad = chartPad();
+      const xMax = Math.max(points.length - 1, 1);
+      const [yMin, yMax] = yRange;
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = width;
+      ctx.lineJoin = "round";
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      points.forEach(([x, y], i) => {
+        const px = pad.left + (w - pad.left - pad.right) * (x / xMax);
+        const py = h - pad.bottom - (h - pad.top - pad.bottom) * ((y - yMin) / Math.max(yMax - yMin, 0.000001));
+        if (i === 0) ctx.moveTo(px, py);
+        else ctx.lineTo(px, py);
+      });
+      ctx.stroke();
+    }
+
+    function drawPhantomBands(ctx, rows, w, h) {
+      const pad = chartPad();
+      const xMax = Math.max(rows.length - 1, 1);
+      ctx.fillStyle = color.band;
+      rows.forEach((row, i) => {
+        if (row.phantomProbability < currentConfig().alertThreshold) return;
+        const x = pad.left + (w - pad.left - pad.right) * (i / xMax);
+        ctx.fillRect(x - 1, pad.top, 3, h - pad.top - pad.bottom);
+      });
+    }
+
+    function drawZeroLine(ctx, w, h, yRange) {
+      const pad = chartPad();
+      const [yMin, yMax] = yRange;
+      const y = h - pad.bottom - (h - pad.top - pad.bottom) * ((0 - yMin) / Math.max(yMax - yMin, 0.000001));
+      ctx.strokeStyle = "#94a3b8";
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(w - pad.right, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function drawHorizontalValue(ctx, w, h, yRange, value, stroke) {
+      const pad = chartPad();
+      const [yMin, yMax] = yRange;
+      const y = h - pad.bottom - (h - pad.top - pad.bottom) * ((value - yMin) / Math.max(yMax - yMin, 0.000001));
+      ctx.strokeStyle = stroke;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(pad.left, y);
+      ctx.lineTo(w - pad.right, y);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function drawVerticalIndex(ctx, w, h, count, index, stroke) {
+      const pad = chartPad();
+      const x = pad.left + (w - pad.left - pad.right) * (index / Math.max(count - 1, 1));
+      ctx.strokeStyle = stroke;
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(x, pad.top);
+      ctx.lineTo(x, h - pad.bottom);
+      ctx.stroke();
+    }
+
+    function drawCanvasMessage(ctx, w, h, message) {
+      ctx.fillStyle = color.text;
+      ctx.font = "13px system-ui, sans-serif";
+      ctx.textAlign = "center";
+      ctx.fillText(message, w / 2, h / 2);
+      ctx.textAlign = "left";
+    }
+
+    function drawSelected(ctx, w, h, count) {
+      if (state.selectedIndex === null || count < 2) return;
+      const pad = chartPad();
+      const x = pad.left + (w - pad.left - pad.right) * (state.selectedIndex / (count - 1));
+      ctx.strokeStyle = "#111827";
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(x, pad.top);
+      ctx.lineTo(x, h - pad.bottom);
+      ctx.stroke();
+    }
+
+    function drawTimeHover(ctx, w, h, count, series) {
+      if (state.hover?.chartId !== ctx.canvas.id || state.hover.index === undefined || count < 2) return;
+      const index = clamp(state.hover.index, 0, count - 1);
+      const row = state.computed[index];
+      if (!row) return;
+      const x = xForIndex(index, count, w);
+      drawHoverLine(ctx, x, w, h);
+      series.forEach((item) => {
+        const value = item.value(row);
+        if (!Number.isFinite(value)) return;
+        const y = yForValue(value, item.range, h);
+        drawHoverDot(ctx, x, y, item.color);
+      });
+    }
+
+    function drawWaveformHover(ctx, w, h, yRange, count) {
+      if (state.hover?.chartId !== "waveformChart" || state.hover.sampleIndex === undefined || count < 2) return;
+      const waveform = state.waveform || {};
+      const index = clamp(state.hover.sampleIndex, 0, count - 1);
+      const value = waveform.samples?.[index];
+      if (!Number.isFinite(value)) return;
+      const x = xForIndex(index, count, w);
+      const y = yForValue(value, yRange, h);
+      drawHoverLine(ctx, x, w, h);
+      drawHoverDot(ctx, x, y, color.peak);
+    }
+
+    function drawHoverLine(ctx, x, w, h) {
+      const pad = chartPad();
+      ctx.strokeStyle = "rgba(15, 23, 42, 0.55)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([3, 3]);
+      ctx.beginPath();
+      ctx.moveTo(x, pad.top);
+      ctx.lineTo(x, h - pad.bottom);
+      ctx.stroke();
+      ctx.setLineDash([]);
+    }
+
+    function drawHoverDot(ctx, x, y, fill) {
+      ctx.fillStyle = fill;
+      ctx.strokeStyle = "#fff";
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.arc(x, y, 4, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    function indexFromX(x, count, w) {
+      const pad = chartPad();
+      const plotW = Math.max(w - pad.left - pad.right, 1);
+      const ratio = clamp((x - pad.left) / plotW, 0, 1);
+      return clamp(Math.round(ratio * Math.max(count - 1, 0)), 0, Math.max(count - 1, 0));
+    }
+
+    function xForIndex(index, count, w) {
+      const pad = chartPad();
+      return pad.left + (w - pad.left - pad.right) * (index / Math.max(count - 1, 1));
+    }
+
+    function yForValue(value, yRange, h) {
+      const pad = chartPad();
+      const [yMin, yMax] = yRange;
+      return h - pad.bottom - (h - pad.top - pad.bottom) * ((value - yMin) / Math.max(yMax - yMin, 0.000001));
+    }
+
+    function chartPad() {
+      return { left: 28, right: 12, top: 12, bottom: 18 };
+    }
+
+    function range(rows, key) {
+      return paddedRange(rows.map((row) => row[key]));
+    }
+
+    function symmetricRange(rows, key) {
+      const maxAbs = Math.max(0.01, ...rows.map((row) => Math.abs(row[key])));
+      return [-maxAbs * 1.15, maxAbs * 1.15];
+    }
+
+    function paddedRange(values) {
+      const finite = values.filter(Number.isFinite);
+      let min = Math.min(...finite);
+      let max = Math.max(...finite);
+      if (!Number.isFinite(min) || !Number.isFinite(max)) return [0, 1];
+      if (min === max) {
+        min -= 1;
+        max += 1;
+      }
+      const pad = (max - min) * 0.12;
+      return [min - pad, max + pad];
+    }
+
+    function downsampleForTable(rows, limit) {
+      if (rows.length <= limit) return rows;
+      const selected = new Map();
+      rows.forEach((row, i) => {
+        if (i % Math.ceil(rows.length / limit) === 0) selected.set(row.index, row);
+      });
+      state.events.forEach((eventItem) => {
+        const row = rows[eventItem.index];
+        if (row) selected.set(row.index, row);
+      });
+      if (state.selectedIndex !== null && rows[state.selectedIndex]) selected.set(state.selectedIndex, rows[state.selectedIndex]);
+      return [...selected.values()].sort((a, b) => a.index - b.index).slice(0, limit + 24);
+    }
+
+    function stateLabel(value) {
+      const labels = state.lang === "en" ? {
+        zero_flow: "Zero",
+        event_flow: "Event",
+        phantom_risk: "Phantom",
+        data_gap: "Gap",
+        review: "Review",
+      } : {
+        zero_flow: "Zero",
+        event_flow: "Event",
+        phantom_risk: "Phantom",
+        data_gap: "Gap",
+        review: "Review",
+      };
+      return labels[value] || value;
+    }
+
+    function stateClass(value) {
+      return {
+        zero_flow: "state-zero",
+        event_flow: "state-event",
+        phantom_risk: "state-phantom",
+        data_gap: "state-gap",
+        review: "state-review",
+      }[value] || "";
+    }
+
+    function copyNotice() {
+      els.noticeText.select();
+      document.execCommand("copy");
+      showToast(t("copiedDraft"));
+    }
+
+    function exportLabels() {
+      const rows = Object.entries(state.labels).map(([id, label]) => ({ id, label }));
+      const text = JSON.stringify({ exportedAt: new Date().toISOString(), labels: rows }, null, 2);
+      const blob = new Blob([text], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "zero-flow-labels.json";
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function loadLabels() {
+      try {
+        return JSON.parse(localStorage.getItem("zeroFlowPrototypeLabels") || "{}");
+      } catch {
+        return {};
+      }
+    }
+
+    function saveLabels() {
+      localStorage.setItem("zeroFlowPrototypeLabels", JSON.stringify(state.labels));
+    }
+
+    function loadLanguage() {
+      try {
+        const saved = localStorage.getItem("zeroFlowPrototypeLanguage");
+        return saved === "zh" ? "zh" : "en";
+      } catch {
+        return "en";
+      }
+    }
+
+    function saveLanguage() {
+      localStorage.setItem("zeroFlowPrototypeLanguage", state.lang);
+    }
+
+    function showToast(message) {
+      els.toast.textContent = message;
+      els.toast.classList.add("show");
+      clearTimeout(showToast.timer);
+      showToast.timer = setTimeout(() => els.toast.classList.remove("show"), 2200);
+    }
+
+    function clamp(value, min, max) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function clamp01(value) {
+      return clamp(value, 0, 1);
+    }
+
+    function pipeGeometry(outerDiameterMm, wallThicknessMm) {
+      const outer = Math.max(Number(outerDiameterMm), 1);
+      const wall = Math.max(Number(wallThicknessMm), 0);
+      const inner = Math.max(outer - 2 * wall, 0.1);
+      const innerM = inner / 1000;
+      return {
+        outerDiameterMm: outer,
+        wallThicknessMm: wall,
+        innerDiameterMm: inner,
+        areaM2: Math.PI * innerM * innerM / 4,
+      };
+    }
+
+    function fsToFr(fsMps, areaM2) {
+      return Number(fsMps) * Number(areaM2) * 3600;
+    }
+
+    function frToFs(frM3h, areaM2) {
+      return Number(frM3h) / Math.max(Number(areaM2) * 3600, 1e-9);
+    }
+
+    function m3hToGpm(frM3h) {
+      return Number(frM3h) * 4.4028675393;
+    }
+
+    function smoothstep(x) {
+      const t = clamp01(x);
+      return t * t * (3 - 2 * t);
+    }
+
+    function pct(value) {
+      return `${Math.round(clamp01(value) * 100)}%`;
+    }
+
+    function formatTime(date) {
+      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+    }
+
+    function numberOr(value, fallback) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : fallback;
+    }
+
+    function finiteNumber(value) {
+      const n = Number(value);
+      return Number.isFinite(n) ? n : null;
+    }
+
+    function formatMaybe(value, digits = 2) {
+      const n = finiteNumber(value);
+      return n === null ? "--" : n.toFixed(digits);
+    }
+
+    function formatFlow(frM3h, gpm) {
+      return `${Number(gpm).toFixed(3)} GPM (${Number(frM3h).toFixed(3)} m3/h)`;
+    }
+
+    function escapeHtml(value) {
+      return String(value).replace(/[&<>"']/g, (char) => ({
+        "&": "&amp;",
+        "<": "&lt;",
+        ">": "&gt;",
+        '"': "&quot;",
+        "'": "&#39;",
+      }[char]));
+    }
+
+    function formatWaveformEvidence(row) {
+      return [
+        `template=${formatMaybe(row.templateCorr, 5)}`,
+        `SNR=${formatMaybe(row.snrDb, 2)} dB`,
+        `noise=${formatMaybe(row.noiseRms, 3)} V`,
+        `gate=${formatMaybe(row.gateRms, 3)} V`,
+        `peak offset=${formatMaybe(row.peakOffsetSamples, 1)} samples`,
+      ].join("，");
+    }
+
+    function rms(values) {
+      const finite = values.filter(Number.isFinite);
+      if (!finite.length) return 0;
+      return Math.sqrt(finite.reduce((sum, value) => sum + value * value, 0) / finite.length);
+    }
+
+    function formatDuration(ms) {
+      const seconds = Math.max(0, Number(ms) || 0) / 1000;
+      if (seconds < 60) return `${seconds.toFixed(seconds < 10 ? 1 : 0)}s`;
+      const minutes = seconds / 60;
+      return `${minutes.toFixed(minutes < 10 ? 1 : 0)}min`;
+    }
+
+    function qualityLabel(row) {
+      if (row.dataGap) return `Gap ${formatDuration(row.sourceGapMs)}`;
+      return "OK";
+    }
+
+    function median(values) {
+      const sorted = values.filter(Number.isFinite).slice().sort((a, b) => a - b);
+      if (!sorted.length) return 0;
+      const mid = Math.floor(sorted.length / 2);
+      return sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2;
+    }
+
+    function formatOts(row) {
+      if (row.otsTempC === null || row.otsTempC === undefined) return "not provided";
+      const gradient = row.thermalGradientC === null || row.thermalGradientC === undefined ? "n/a" : row.thermalGradientC.toFixed(2);
+      return `${row.otsTempC.toFixed(2)} C，gradient=${gradient} C`;
+    }
+
+    function fileSafeId(value) {
+      return value.replace(/[^a-z0-9]+/gi, "-").replace(/^-|-$/g, "").toLowerCase();
+    }
+  </script>
+</body>
+</html>

@@ -1,0 +1,34 @@
+{
+  "serial": "BB8100017587",
+  "date": "2026-05-21",
+  "health_score": 99,
+  "label": "Optimal",
+  "color": "#10b981",
+  "subscores": {
+    "coupling": 98.5,
+    "signal_strength": 99.6,
+    "sq_quality": 98.8,
+    "stability": 100.0,
+    "incident_burden": 99.9,
+    "uptime": 25.5
+  },
+  "summary": {
+    "frames_observed": 10979,
+    "expected_frames": 43071,
+    "median_period_s": 2.01,
+    "anomaly_frames": 14,
+    "suspect_frames": 4,
+    "empty_pipe_minutes": 0.0,
+    "air_bubble_minutes": 0.0,
+    "mean_template_corr": 0.99699,
+    "mean_snr_db": 12.5,
+    "mean_gate_rms_v": 1.0486,
+    "mean_sq": 98.8,
+    "std_template_corr": 0.000741
+  },
+  "highlights": [
+    "14 anomaly frames",
+    "Uptime only 25% \u2014 pub stream thinner than expected"
+  ],
+  "trend_vs_7d": {}
+}

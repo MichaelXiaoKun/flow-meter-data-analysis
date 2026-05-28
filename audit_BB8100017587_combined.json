@@ -1,0 +1,955 @@
+{
+  "file": "BB8100017587.csv",
+  "model": "oneclass_meter_model_combined.json",
+  "cnn_model": null,
+  "rows": 17047,
+  "sample_columns": 1024,
+  "time": {
+    "start": "2026-05-21T17:51:08.883000+00:00",
+    "end": "2026-05-22T03:42:02.045000+00:00",
+    "duration_s": 35453.162,
+    "interval_s": {
+      "n": 17046,
+      "min": 0.001,
+      "p05": 1.925,
+      "p50": 2.006,
+      "mean": 2.0798522820603074,
+      "p95": 2.088,
+      "max": 1213.492
+    }
+  },
+  "csv_labels": {
+    "good": 17047
+  },
+  "sq": {
+    "n": 17047,
+    "min": 95.0,
+    "p05": 98.0,
+    "p50": 99.0,
+    "mean": 98.88279462662052,
+    "p95": 100.0,
+    "max": 100.0
+  },
+  "sq_age_ms": {
+    "n": 17047,
+    "min": 0.0,
+    "p05": 918.0,
+    "p50": 1001.0,
+    "mean": 1000.908429635713,
+    "p95": 1057.0,
+    "max": 5563.0
+  },
+  "analyzer": {
+    "labels": {
+      "normal": 16970,
+      "suspect": 60,
+      "anomaly": 17
+    },
+    "raw_states": {
+      "normal_acoustic_state": 16965,
+      "signal_quality_suspect": 60,
+      "waveform_anomaly": 17,
+      "weak_signal_or_air_candidate": 5
+    },
+    "stable_states": {
+      "normal_acoustic_state": 17047
+    },
+    "peak_modes": {
+      "peak_minus_100": 11824,
+      "peak_center": 4821,
+      "peak_plus_50": 402
+    },
+    "health_labels": {
+      "Excellent": 12183,
+      "Healthy": 4373,
+      "Watch": 473,
+      "Degraded": 18
+    },
+    "conditions": {
+      "normal": 17047
+    },
+    "detection_events": {},
+    "state_confirmations": {
+      "stable": 16964,
+      "pending": 82,
+      "initialized": 1
+    },
+    "raw_transitions": 158,
+    "stable_transitions": 0,
+    "mode_switches": 7946,
+    "health_score": {
+      "n": 17047,
+      "min": 55.0,
+      "p05": 76.2,
+      "p50": 96.5,
+      "mean": 91.96018654308676,
+      "p95": 98.4,
+      "max": 98.9
+    },
+    "pattern_score": {
+      "n": 17047,
+      "min": 35.9,
+      "p05": 81.0,
+      "p50": 98.1,
+      "mean": 93.99965976418137,
+      "p95": 99.2,
+      "max": 99.8
+    }
+  },
+  "per_mode": {
+    "peak_center": {
+      "noise_rms_v": {
+        "n": 4821,
+        "min": 0.23438749966668437,
+        "p05": 0.23835372873106056,
+        "p50": 0.24160918856699137,
+        "mean": 0.24360698634679379,
+        "p95": 0.2601682148149539,
+        "max": 0.2665755052513265
+      },
+      "gate_rms_v": {
+        "n": 4821,
+        "min": 0.9916841735149352,
+        "p05": 0.9999218719480036,
+        "p50": 1.0072083945241916,
+        "mean": 1.0208782571595332,
+        "p95": 1.119151464279969,
+        "max": 1.1293803610830135
+      },
+      "template_corr": {
+        "n": 4821,
+        "min": 0.9895751121146786,
+        "p05": 0.9954385991680446,
+        "p50": 0.9969770654718246,
+        "mean": 0.9968027132316086,
+        "p95": 0.9977458561137957,
+        "max": 0.9980621227482862
+      },
+      "snr_db": {
+        "n": 4821,
+        "min": 12.022076779000878,
+        "p05": 12.301901086941882,
+        "p50": 12.4244868434196,
+        "mean": 12.443278402620269,
+        "p95": 12.68751823178549,
+        "max": 12.988937666548711
+      },
+      "low_clip_ratio": {
+        "n": 4821,
+        "min": 0.0234375,
+        "p05": 0.0283203125,
+        "p50": 0.03125,
+        "mean": 0.0346595623314665,
+        "p95": 0.0615234375,
+        "max": 0.0673828125
+      },
+      "peak_offset_samples": {
+        "n": 4821,
+        "min": -2.0,
+        "p05": -1.0,
+        "p50": 0.0,
+        "mean": -0.06637627048330222,
+        "p95": 1.0,
+        "max": 2.0
+      },
+      "first_arrival_offset_samples": {
+        "n": 4821,
+        "min": -102.0,
+        "p05": -101.0,
+        "p50": -100.0,
+        "mean": -100.36403235843186,
+        "p95": -100.0,
+        "max": 0.0
+      },
+      "score": {
+        "n": 4821,
+        "min": 0.03616417308476315,
+        "p05": 0.11774608604885471,
+        "p50": 0.2649032985342804,
+        "mean": 0.659838075225943,
+        "p95": 3.5635313585054456,
+        "max": 3.923273398459423
+      },
+      "health": {
+        "n": 4821,
+        "min": 55.0,
+        "p05": 84.7,
+        "p50": 97.1,
+        "mean": 95.43522090852521,
+        "p95": 98.6,
+        "max": 98.9
+      }
+    },
+    "peak_minus_100": {
+      "noise_rms_v": {
+        "n": 11824,
+        "min": 0.23251344047172837,
+        "p05": 0.23940029239748223,
+        "p50": 0.2548283736164402,
+        "mean": 0.2512402863803189,
+        "p95": 0.2595669470483482,
+        "max": 0.2692582403567252
+      },
+      "gate_rms_v": {
+        "n": 11824,
+        "min": 0.992440174519351,
+        "p05": 1.0024968827881708,
+        "p50": 1.0913151469671805,
+        "mean": 1.063673038420276,
+        "p95": 1.098194541053633,
+        "max": 1.1085745351576495
+      },
+      "template_corr": {
+        "n": 11824,
+        "min": 0.9819269305321975,
+        "p05": 0.9957815308894654,
+        "p50": 0.9972001457205468,
+        "mean": 0.9970253598424574,
+        "p95": 0.997810676438379,
+        "max": 0.9982051833579495
+      },
+      "snr_db": {
+        "n": 11824,
+        "min": 11.639815371787396,
+        "p05": 12.32958725864565,
+        "p50": 12.548756767598794,
+        "mean": 12.531579033756334,
+        "p95": 12.701214662609729,
+        "max": 12.887272306801933
+      },
+      "low_clip_ratio": {
+        "n": 11824,
+        "min": 0.0224609375,
+        "p05": 0.029296875,
+        "p50": 0.056640625,
+        "mean": 0.04901461672234438,
+        "p95": 0.0615234375,
+        "max": 0.0654296875
+      },
+      "peak_offset_samples": {
+        "n": 11824,
+        "min": -102.0,
+        "p05": -100.0,
+        "p50": -99.0,
+        "mean": -98.98097090663059,
+        "p95": -98.0,
+        "max": -96.0
+      },
+      "first_arrival_offset_samples": {
+        "n": 11824,
+        "min": -129.0,
+        "p05": -102.0,
+        "p50": -101.0,
+        "mean": -99.9969553450609,
+        "p95": -100.0,
+        "max": 9999.0
+      },
+      "score": {
+        "n": 11824,
+        "min": 0.09278103806054902,
+        "p05": 0.16307001232353652,
+        "p50": 0.3721333557839195,
+        "mean": 1.13586413115693,
+        "p95": 3.1660714173561173,
+        "max": 3.5135060817926007
+      },
+      "health": {
+        "n": 11824,
+        "min": 55.0,
+        "p05": 75.5,
+        "p50": 96.2,
+        "mean": 90.49653247631935,
+        "p95": 98.2,
+        "max": 98.7
+      }
+    },
+    "peak_plus_50": {
+      "noise_rms_v": {
+        "n": 402,
+        "min": 0.240182222489509,
+        "p05": 0.24226147900567802,
+        "p50": 0.2462848878332014,
+        "mean": 0.24977394533394193,
+        "p95": 0.26124700955226265,
+        "max": 0.2663409469082815
+      },
+      "gate_rms_v": {
+        "n": 402,
+        "min": 1.0239476304967943,
+        "p05": 1.0324742732661603,
+        "p50": 1.0394259231778031,
+        "mean": 1.0615948714800416,
+        "p95": 1.1135227040414675,
+        "max": 1.1218427920167777
+      },
+      "template_corr": {
+        "n": 402,
+        "min": 0.9933372587795938,
+        "p05": 0.9950545166637779,
+        "p50": 0.9964744917153725,
+        "mean": 0.9963171486897207,
+        "p95": 0.9971627710247619,
+        "max": 0.9973910625089244
+      },
+      "snr_db": {
+        "n": 402,
+        "min": 12.325852250016522,
+        "p05": 12.43400822379479,
+        "p50": 12.557790884447886,
+        "mean": 12.566801522014499,
+        "p95": 12.709680397130631,
+        "max": 12.833584894962884
+      },
+      "low_clip_ratio": {
+        "n": 402,
+        "min": 0.0302734375,
+        "p05": 0.0322265625,
+        "p50": 0.0361328125,
+        "mean": 0.043036769278606966,
+        "p95": 0.0615234375,
+        "max": 0.0625
+      },
+      "peak_offset_samples": {
+        "n": 402,
+        "min": 48.0,
+        "p05": 49.0,
+        "p50": 50.0,
+        "mean": 50.20646766169154,
+        "p95": 51.94999999999999,
+        "max": 52.0
+      },
+      "first_arrival_offset_samples": {
+        "n": 402,
+        "min": -102.0,
+        "p05": -101.0,
+        "p50": -100.0,
+        "mean": -99.96268656716418,
+        "p95": -99.0,
+        "max": -1.0
+      },
+      "score": {
+        "n": 402,
+        "min": 0.05391746323946241,
+        "p05": 0.1203120650945587,
+        "p50": 0.31026284781018343,
+        "mean": 0.9718482235511225,
+        "p95": 2.5150078987347273,
+        "max": 2.6891923235448716
+      },
+      "health": {
+        "n": 402,
+        "min": 55.0,
+        "p05": 86.3,
+        "p50": 96.0,
+        "mean": 93.33606965174128,
+        "p95": 98.295,
+        "max": 98.8
+      }
+    }
+  },
+  "cnn_by_mode": {},
+  "worst_by_score": [
+    {
+      "row": 15798,
+      "timestamp": "2026-05-22T03:00:16.801Z",
+      "mode": "peak_center",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.923273398459423,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 7.2265625
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.648089671916656
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.711170875592785
+        }
+      ]
+    },
+    {
+      "row": 15948,
+      "timestamp": "2026-05-22T03:05:17.629Z",
+      "mode": "peak_center",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.9005336111682682,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.640625
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.9423333148273745
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.9932633368670265
+        }
+      ]
+    },
+    {
+      "row": 16047,
+      "timestamp": "2026-05-22T03:08:36.224Z",
+      "mode": "peak_center",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.8800835873459816,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.8359375
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.664128464739659
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.9463516682580195
+        }
+      ]
+    },
+    {
+      "row": 15933,
+      "timestamp": "2026-05-22T03:04:47.600Z",
+      "mode": "peak_center",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.833253327488666,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.4453125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 6.095453528926564
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.4986128715787554
+        }
+      ]
+    },
+    {
+      "row": 15901,
+      "timestamp": "2026-05-22T03:03:43.370Z",
+      "mode": "peak_center",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.8276999961399483,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.8359375
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.91873938264702
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 16000,
+      "timestamp": "2026-05-22T03:07:01.975Z",
+      "mode": "peak_center",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.8229170181423955,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.8359375
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.918739382646998
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 15801,
+      "timestamp": "2026-05-22T03:00:22.748Z",
+      "mode": "peak_center",
+      "label": "suspect",
+      "raw_state": "signal_quality_suspect",
+      "stable_state": "normal_acoustic_state",
+      "health": 74.0,
+      "health_label": "Watch",
+      "score": 3.8189673638698793,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 7.03125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.662036708687978
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.094762710513233
+        }
+      ]
+    },
+    {
+      "row": 15906,
+      "timestamp": "2026-05-22T03:03:53.396Z",
+      "mode": "peak_center",
+      "label": "suspect",
+      "raw_state": "signal_quality_suspect",
+      "stable_state": "normal_acoustic_state",
+      "health": 73.3,
+      "health_label": "Watch",
+      "score": 3.8178162341198894,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.4453125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.849983003178472
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.711170875592785
+        }
+      ]
+    },
+    {
+      "row": 15967,
+      "timestamp": "2026-05-22T03:05:55.766Z",
+      "mode": "peak_center",
+      "label": "suspect",
+      "raw_state": "signal_quality_suspect",
+      "stable_state": "normal_acoustic_state",
+      "health": 74.0,
+      "health_label": "Watch",
+      "score": 3.8129749517948053,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.4453125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 6.076768811136946
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.308951754364798
+        }
+      ]
+    },
+    {
+      "row": 15918,
+      "timestamp": "2026-05-22T03:04:17.456Z",
+      "mode": "peak_center",
+      "label": "suspect",
+      "raw_state": "signal_quality_suspect",
+      "stable_state": "normal_acoustic_state",
+      "health": 74.0,
+      "health_label": "Watch",
+      "score": 3.8106944504914892,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.4453125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 6.019984671063017
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.451261494436776
+        }
+      ]
+    },
+    {
+      "row": 15904,
+      "timestamp": "2026-05-22T03:03:49.405Z",
+      "mode": "peak_center",
+      "label": "suspect",
+      "raw_state": "signal_quality_suspect",
+      "stable_state": "normal_acoustic_state",
+      "health": 74.0,
+      "health_label": "Watch",
+      "score": 3.8104245048157277,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.8359375
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 6.0123629352840435
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 15899,
+      "timestamp": "2026-05-22T03:03:39.346Z",
+      "mode": "peak_center",
+      "label": "suspect",
+      "raw_state": "signal_quality_suspect",
+      "stable_state": "normal_acoustic_state",
+      "health": 74.0,
+      "health_label": "Watch",
+      "score": 3.8076611186819975,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.640625
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.920821598054015
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    }
+  ],
+  "worst_by_health": [
+    {
+      "row": 38,
+      "timestamp": "2026-05-21T17:52:23.032Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.4296306316566136,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.0546875
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.74812116397148
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 43,
+      "timestamp": "2026-05-21T17:52:33.058Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.434653320005833,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 5.46875
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.815600313431001
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.51201566839316
+        }
+      ]
+    },
+    {
+      "row": 61,
+      "timestamp": "2026-05-21T17:53:09.161Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.4240225901989296,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.4453125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.741064674946582
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 144,
+      "timestamp": "2026-05-21T17:55:55.670Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.4179438269628917,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.0546875
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.590763601485986
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 278,
+      "timestamp": "2026-05-21T18:00:24.469Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.408022257635097,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.4453125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.584510865303015
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 283,
+      "timestamp": "2026-05-21T18:00:34.500Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.4361163516379603,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.4453125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.680733293037576
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 626,
+      "timestamp": "2026-05-21T18:12:02.523Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.4358114281729977,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.4453125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.704230346069971
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 649,
+      "timestamp": "2026-05-21T18:12:48.643Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.4167260516849267,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.4453125
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.7802800482466985
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 819,
+      "timestamp": "2026-05-21T18:18:29.602Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.5135060817926007,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.8359375
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.686998091537086
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 1010,
+      "timestamp": "2026-05-21T18:24:52.740Z",
+      "mode": "peak_minus_100",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.4355335787078545,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.0546875
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 4.868234774291008
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    },
+    {
+      "row": 15798,
+      "timestamp": "2026-05-22T03:00:16.801Z",
+      "mode": "peak_center",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.923273398459423,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 7.2265625
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.648089671916656
+        },
+        {
+          "feature": "noise_rms_v",
+          "z": 4.711170875592785
+        }
+      ]
+    },
+    {
+      "row": 15901,
+      "timestamp": "2026-05-22T03:03:43.370Z",
+      "mode": "peak_center",
+      "label": "anomaly",
+      "raw_state": "waveform_anomaly",
+      "stable_state": "normal_acoustic_state",
+      "health": 55.0,
+      "health_label": "Degraded",
+      "score": 3.8276999961399483,
+      "top_reasons": [
+        {
+          "feature": "low_clip_ratio",
+          "z": 6.8359375
+        },
+        {
+          "feature": "gate_rms_v",
+          "z": 5.91873938264702
+        },
+        {
+          "feature": "peak_abs_gate_v",
+          "z": 4.0000000000000036
+        }
+      ]
+    }
+  ]
+}

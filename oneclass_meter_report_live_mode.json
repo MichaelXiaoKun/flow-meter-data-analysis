@@ -1,0 +1,995 @@
+{
+  "mode_aware": true,
+  "mode_training_summary": {
+    "peak_center": {
+      "rows": 47,
+      "enabled": true,
+      "score_quantiles": {
+        "p01": 0.05361453781243082,
+        "p05": 0.07095634302192114,
+        "p50": 0.1826959538095516,
+        "p95": 0.3464650208210054,
+        "p99": 0.3580313779988109,
+        "p995": 0.3614424422849714,
+        "p999": 0.36417129371389984
+      },
+      "score_thresholds": {
+        "suspect": 0.3614424422849714,
+        "anomaly": 0.36417129371389984
+      }
+    },
+    "peak_minus_100": {
+      "rows": 47,
+      "enabled": true,
+      "score_quantiles": {
+        "p01": 0.041240171864747446,
+        "p05": 0.07620314006279284,
+        "p50": 0.2090270473805597,
+        "p95": 0.47591171397895393,
+        "p99": 0.6527758082599233,
+        "p995": 0.7164455586582427,
+        "p999": 0.7673813589768986
+      },
+      "score_thresholds": {
+        "suspect": 0.7164455586582427,
+        "anomaly": 0.7673813589768986
+      }
+    }
+  },
+  "train": {
+    "rows": 94,
+    "labels": {
+      "anomaly": 2,
+      "normal": 92
+    },
+    "peak_modes": {
+      "peak_center": 47,
+      "peak_minus_100": 47
+    },
+    "score_quantiles": {
+      "p01": 0.048642396553194286,
+      "p05": 0.0725329054372827,
+      "p50": 0.1954795688225468,
+      "p95": 0.40303547989979666,
+      "p99": 0.5226680574459669,
+      "p995": 0.6513916832512635,
+      "p999": 0.7543705838955039
+    },
+    "worst": [
+      {
+        "score": 0.7801153090565601,
+        "row": 53,
+        "label": "anomaly",
+        "reasons": [
+          {
+            "feature": "noise_rms_v",
+            "z": 1.7000080783836968
+          },
+          {
+            "feature": "snr_db",
+            "z": 1.2676294976308267
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.7977733355798988
+          },
+          {
+            "feature": "low_clip_ratio",
+            "z": 0.5859375
+          }
+        ]
+      },
+      {
+        "score": 0.5032903073247414,
+        "row": 41,
+        "label": "normal",
+        "reasons": [
+          {
+            "feature": "noise_rms_v",
+            "z": 1.0980641573133498
+          },
+          {
+            "feature": "snr_db",
+            "z": 0.733847419647029
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.608058889355112
+          },
+          {
+            "feature": "low_clip_ratio",
+            "z": 0.390625
+          }
+        ]
+      },
+      {
+        "score": 0.4899767171093784,
+        "row": 52,
+        "label": "normal",
+        "reasons": [
+          {
+            "feature": "noise_rms_v",
+            "z": 0.8105201559172492
+          },
+          {
+            "feature": "low_clip_ratio",
+            "z": 0.78125
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.7573513855116953
+          },
+          {
+            "feature": "snr_db",
+            "z": 0.5636592331977575
+          }
+        ]
+      },
+      {
+        "score": 0.4430933733412966,
+        "row": 64,
+        "label": "normal",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 1.171875
+          },
+          {
+            "feature": "noise_rms_v",
+            "z": 0.4765563704941189
+          },
+          {
+            "feature": "snr_db",
+            "z": 0.32636616649877936
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.23495423675851113
+          }
+        ]
+      },
+      {
+        "score": 0.41109837296611185,
+        "row": 68,
+        "label": "normal",
+        "reasons": [
+          {
+            "feature": "noise_rms_v",
+            "z": 1.0133840160753582
+          },
+          {
+            "feature": "snr_db",
+            "z": 0.5948239715006665
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 0.24886154326480003
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.20043724408708163
+          }
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "rows": 46,
+    "labels": {
+      "normal": 44,
+      "anomaly": 2
+    },
+    "peak_modes": {
+      "peak_minus_100": 24,
+      "peak_center": 22
+    },
+    "score_quantiles": {
+      "p01": 0.0766994358916836,
+      "p05": 0.09001940438745554,
+      "p50": 0.2241797964853272,
+      "p95": 0.4360072727743104,
+      "p99": 0.6088855736184968,
+      "p995": 0.6224177640709196,
+      "p999": 0.6332435164328577
+    },
+    "worst": [
+      {
+        "score": 0.6359499545233424,
+        "row": 16,
+        "label": "anomaly",
+        "reasons": [
+          {
+            "feature": "noise_rms_v",
+            "z": 1.3714615491828952
+          },
+          {
+            "feature": "snr_db",
+            "z": 1.0673718029850487
+          },
+          {
+            "feature": "low_clip_ratio",
+            "z": 0.78125
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.0966963946043009
+          }
+        ]
+      },
+      {
+        "score": 0.5758068858459082,
+        "row": 43,
+        "label": "normal",
+        "reasons": [
+          {
+            "feature": "noise_rms_v",
+            "z": 1.2757456644332366
+          },
+          {
+            "feature": "snr_db",
+            "z": 1.0136431640338728
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.4126072800938463
+          },
+          {
+            "feature": "low_clip_ratio",
+            "z": 0.390625
+          }
+        ]
+      },
+      {
+        "score": 0.43845904785466533,
+        "row": 33,
+        "label": "anomaly",
+        "reasons": [
+          {
+            "feature": "noise_rms_v",
+            "z": 0.9184358673210546
+          },
+          {
+            "feature": "snr_db",
+            "z": 0.7295741822224944
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.5482956779169212
+          },
+          {
+            "feature": "low_clip_ratio",
+            "z": 0.1953125
+          }
+        ]
+      },
+      {
+        "score": 0.42865194753324565,
+        "row": 34,
+        "label": "normal",
+        "reasons": [
+          {
+            "feature": "noise_rms_v",
+            "z": 0.832587094201942
+          },
+          {
+            "feature": "snr_db",
+            "z": 0.7195059671712034
+          },
+          {
+            "feature": "low_clip_ratio",
+            "z": 0.5859375
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.2815388582031453
+          }
+        ]
+      },
+      {
+        "score": 0.41623847016598875,
+        "row": 2,
+        "label": "normal",
+        "reasons": [
+          {
+            "feature": "noise_rms_v",
+            "z": 0.906413438006648
+          },
+          {
+            "feature": "snr_db",
+            "z": 0.6822153972199008
+          },
+          {
+            "feature": "low_clip_ratio",
+            "z": 0.390625
+          },
+          {
+            "feature": "template_corr",
+            "z": 0.34523621664156456
+          }
+        ]
+      }
+    ]
+  },
+  "synthetic_probes": {
+    "weak_signal_20pct": {
+      "rows": 46,
+      "labels": {
+        "anomaly": 46
+      },
+      "peak_modes": {
+        "peak_minus_100": 24,
+        "peak_center": 22
+      },
+      "score_quantiles": {
+        "p01": 13.822853438128046,
+        "p05": 13.822890752674793,
+        "p50": 14.155145722844939,
+        "p95": 14.1572088094949,
+        "p99": 14.158674522940984,
+        "p995": 14.15920491269097,
+        "p999": 14.159629224490962
+      },
+      "worst": [
+        {
+          "score": 14.15973530244096,
+          "row": 43,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 51.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 46.974208135966585
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 46.229054775109375
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 28.8
+            }
+          ]
+        },
+        {
+          "score": 14.157378014663234,
+          "row": 34,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 51.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 46.961463361867864
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 46.140423061063125
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 28.8
+            }
+          ]
+        },
+        {
+          "score": 14.1573295629219,
+          "row": 2,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 51.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 46.98537115118213
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 45.7926229546214
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 28.8
+            }
+          ]
+        },
+        {
+          "score": 14.156846549213903,
+          "row": 19,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 51.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 47.04041093085838
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 45.84843201415617
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 28.8
+            }
+          ]
+        },
+        {
+          "score": 14.156643253188834,
+          "row": 46,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 51.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 46.98842954070383
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 46.043722393982556
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 28.8
+            }
+          ]
+        }
+      ]
+    },
+    "empty_like_noise_only": {
+      "rows": 46,
+      "labels": {
+        "anomaly": 46
+      },
+      "peak_modes": {
+        "peak_minus_100": 25,
+        "peak_other": 15,
+        "peak_center": 6
+      },
+      "score_quantiles": {
+        "p01": 14.099668375523837,
+        "p05": 14.101439512643045,
+        "p50": 16.072926116893235,
+        "p95": 16.162482355276936,
+        "p99": 16.34584655141108,
+        "p995": 16.40841960198438,
+        "p999": 16.458478042443023
+      },
+      "worst": [
+        {
+          "score": 16.470992652557683,
+          "row": 135,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 675.9060899004638
+            },
+            {
+              "feature": "snr_db",
+              "z": 61.174579734040805
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 48.23022523350238
+            },
+            {
+              "feature": "ptp_v",
+              "z": 48.00000000000001
+            }
+          ]
+        },
+        {
+          "score": 16.192890205565227,
+          "row": 43,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 676.5352725834288
+            },
+            {
+              "feature": "snr_db",
+              "z": 61.174579734040805
+            },
+            {
+              "feature": "ptp_v",
+              "z": 48.00000000000001
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 47.4990383850843
+            }
+          ]
+        },
+        {
+          "score": 16.1628510215408,
+          "row": 34,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 649.7804713606815
+            },
+            {
+              "feature": "snr_db",
+              "z": 61.174579734040805
+            },
+            {
+              "feature": "ptp_v",
+              "z": 48.00000000000001
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 47.41040667103804
+            }
+          ]
+        },
+        {
+          "score": 16.161376356485352,
+          "row": 66,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 654.7737451682409
+            },
+            {
+              "feature": "snr_db",
+              "z": 61.174579734040805
+            },
+            {
+              "feature": "ptp_v",
+              "z": 48.00000000000001
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 47.4059932833811
+            }
+          ]
+        },
+        {
+          "score": 16.141000955711068,
+          "row": 96,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 666.6035417269417
+            },
+            {
+              "feature": "snr_db",
+              "z": 61.174579734040805
+            },
+            {
+              "feature": "ptp_v",
+              "z": 48.00000000000001
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 47.344385367852446
+            }
+          ]
+        }
+      ]
+    },
+    "echo_delayed_35_samples": {
+      "rows": 46,
+      "labels": {
+        "anomaly": 46
+      },
+      "peak_modes": {
+        "peak_minus_100": 24,
+        "peak_plus_50": 22
+      },
+      "score_quantiles": {
+        "p01": 7.054212150094838,
+        "p05": 7.1023556221533255,
+        "p50": 7.509135791465818,
+        "p95": 7.877730513637114,
+        "p99": 7.9689260500465195,
+        "p995": 7.992723595054421,
+        "p999": 8.011761631060741
+      },
+      "worst": [
+        {
+          "score": 8.016521140062322,
+          "row": 43,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 655.437727603078
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 10.350506095219448
+            },
+            {
+              "feature": "snr_db",
+              "z": 8.42846497797165
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 0.390625
+            }
+          ]
+        },
+        {
+          "score": 7.910754273360541,
+          "row": 34,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 696.0800311145172
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 9.927924756759582
+            },
+            {
+              "feature": "snr_db",
+              "z": 8.01489815778698
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 0.5859375
+            }
+          ]
+        },
+        {
+          "score": 7.890701782741986,
+          "row": 66,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 687.7240881378871
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 9.927924756759577
+            },
+            {
+              "feature": "snr_db",
+              "z": 7.842987262711825
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 0.5042672564346429
+            }
+          ]
+        },
+        {
+          "score": 7.838816706322497,
+          "row": 96,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 671.464691833006
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 9.665708441909954
+            },
+            {
+              "feature": "snr_db",
+              "z": 7.7089024037975395
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 0.363570171968286
+            }
+          ]
+        },
+        {
+          "score": 7.810952164273125,
+          "row": 117,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 659.5492198848013
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 9.58732357328198
+            },
+            {
+              "feature": "snr_db",
+              "z": 7.5434451346198905
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 0.4901822544545409
+            }
+          ]
+        }
+      ]
+    },
+    "bias_low_minus_0p30v": {
+      "rows": 46,
+      "labels": {
+        "anomaly": 46
+      },
+      "peak_modes": {
+        "peak_minus_100": 24,
+        "peak_center": 22
+      },
+      "score_quantiles": {
+        "p01": 4.054039578145216,
+        "p05": 4.106388021955331,
+        "p50": 4.764842359995173,
+        "p95": 5.11969484801542,
+        "p99": 5.187259306040973,
+        "p995": 5.208089071141124,
+        "p999": 5.224752883221244
+      },
+      "worst": [
+        {
+          "score": 5.228918836241275,
+          "row": 76,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "low_clip_ratio",
+              "z": 11.9140625
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "ptp_v",
+              "z": 5.9999999999999964
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 3.6273903860396417
+            }
+          ]
+        },
+        {
+          "score": 5.1363421024628275,
+          "row": 34,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "low_clip_ratio",
+              "z": 11.5234375
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "ptp_v",
+              "z": 5.9999999999999964
+            },
+            {
+              "feature": "template_corr",
+              "z": 3.960189460696817
+            }
+          ]
+        },
+        {
+          "score": 5.125572225088321,
+          "row": 134,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "low_clip_ratio",
+              "z": 11.328125
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "ptp_v",
+              "z": 5.9999999999999964
+            },
+            {
+              "feature": "template_corr",
+              "z": 3.75116398965486
+            }
+          ]
+        },
+        {
+          "score": 5.102062716796714,
+          "row": 43,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "low_clip_ratio",
+              "z": 11.328125
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "ptp_v",
+              "z": 5.9999999999999964
+            },
+            {
+              "feature": "template_corr",
+              "z": 4.124667093301115
+            }
+          ]
+        },
+        {
+          "score": 5.092941941230855,
+          "row": 28,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "low_clip_ratio",
+              "z": 11.1328125
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "ptp_v",
+              "z": 5.9999999999999964
+            },
+            {
+              "feature": "template_corr",
+              "z": 4.283487792873464
+            }
+          ]
+        }
+      ]
+    },
+    "gain_high_clip_1p60x": {
+      "rows": 46,
+      "labels": {
+        "anomaly": 46
+      },
+      "peak_modes": {
+        "peak_minus_100": 46
+      },
+      "score_quantiles": {
+        "p01": 11.730181046732849,
+        "p05": 11.803426635626288,
+        "p50": 13.22865553786538,
+        "p95": 13.349582794838113,
+        "p99": 13.37898065567357,
+        "p995": 13.386762827081512,
+        "p999": 13.392988564207863
+      },
+      "worst": [
+        {
+          "score": 13.394544998489453,
+          "row": 2,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 112.3046875
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 35.93069073247772
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 20.3125
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 13.011022820891416
+            }
+          ]
+        },
+        {
+          "score": 13.359957570009716,
+          "row": 37,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 107.421875
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 35.173861462191745
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 21.484375
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 13.108650232353936
+            }
+          ]
+        },
+        {
+          "score": 13.349657093507458,
+          "row": 134,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 112.3046875
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 34.89711329039986
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 21.875
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 13.09061896023328
+            }
+          ]
+        },
+        {
+          "score": 13.349359898830084,
+          "row": 60,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 111.328125
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 35.311925985167214
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 21.09375
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 12.929528716729887
+            }
+          ]
+        },
+        {
+          "score": 13.348556156930051,
+          "row": 28,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 107.421875
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 34.236489185027054
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 21.2890625
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 13.08652921214194
+            }
+          ]
+        }
+      ]
+    }
+  }
+}

@@ -1,0 +1,1014 @@
+{
+  "mode_aware": true,
+  "mode_training_summary": {
+    "peak_center": {
+      "rows": 3354,
+      "enabled": true,
+      "score_quantiles": {
+        "p01": 0.08271860949886806,
+        "p05": 0.11724144617374785,
+        "p50": 0.2656772702159408,
+        "p95": 3.581284434490344,
+        "p99": 3.7279449988035953,
+        "p995": 3.7646536674689712,
+        "p999": 3.8219330970865775
+      },
+      "score_thresholds": {
+        "suspect": 3.7646536674689712,
+        "anomaly": 3.8219330970865775
+      }
+    },
+    "peak_minus_100": {
+      "rows": 8287,
+      "enabled": true,
+      "score_quantiles": {
+        "p01": 0.1268101922193575,
+        "p05": 0.1637992389202723,
+        "p50": 0.37686556142491967,
+        "p95": 3.165797334761975,
+        "p99": 3.286400001225651,
+        "p995": 3.3131025441697926,
+        "p999": 3.3875836065807836
+      },
+      "score_thresholds": {
+        "suspect": 3.3131025441697926,
+        "anomaly": 3.3875836065807836
+      }
+    },
+    "peak_plus_50": {
+      "rows": 278,
+      "enabled": true,
+      "score_quantiles": {
+        "p01": 0.08819174148350314,
+        "p05": 0.1258568786244904,
+        "p50": 0.3068386110279811,
+        "p95": 2.509048150180482,
+        "p99": 2.566508757668929,
+        "p995": 2.591252516578149,
+        "p999": 2.6624358274806545
+      },
+      "score_thresholds": {
+        "suspect": 2.591252516578149,
+        "anomaly": 2.6624358274806545
+      }
+    }
+  },
+  "train": {
+    "rows": 11919,
+    "labels": {
+      "normal": 11858,
+      "anomaly": 14,
+      "suspect": 47
+    },
+    "peak_modes": {
+      "peak_center": 3354,
+      "peak_minus_100": 8287,
+      "peak_plus_50": 278
+    },
+    "score_quantiles": {
+      "p01": 0.10324290839460476,
+      "p05": 0.14436048129863874,
+      "p50": 0.3359347382970804,
+      "p95": 3.238008387063936,
+      "p99": 3.6187149099452705,
+      "p995": 3.687282777610527,
+      "p999": 3.7911877655037074
+    },
+    "worst": [
+      {
+        "score": 3.901076872883884,
+        "row": 15948,
+        "label": "anomaly",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 6.640625
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 5.9423333148273745
+          },
+          {
+            "feature": "noise_rms_v",
+            "z": 4.9932633368670265
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      },
+      {
+        "score": 3.8804129914629844,
+        "row": 16047,
+        "label": "anomaly",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 6.8359375
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 5.664128464739659
+          },
+          {
+            "feature": "noise_rms_v",
+            "z": 4.9463516682580195
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      },
+      {
+        "score": 3.8338807711485963,
+        "row": 15933,
+        "label": "anomaly",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 6.4453125
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 6.095453528926564
+          },
+          {
+            "feature": "noise_rms_v",
+            "z": 4.4986128715787554
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      },
+      {
+        "score": 3.8234443916132146,
+        "row": 16000,
+        "label": "anomaly",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 6.8359375
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 5.918739382646998
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          },
+          {
+            "feature": "ptp_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      },
+      {
+        "score": 3.8191631040023446,
+        "row": 15801,
+        "label": "suspect",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 7.03125
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 5.662036708687978
+          },
+          {
+            "feature": "noise_rms_v",
+            "z": 4.094762710513233
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      }
+    ]
+  },
+  "validation": {
+    "rows": 5128,
+    "labels": {
+      "normal": 5103,
+      "anomaly": 5,
+      "suspect": 20
+    },
+    "peak_modes": {
+      "peak_minus_100": 3537,
+      "peak_center": 1467,
+      "peak_plus_50": 124
+    },
+    "score_quantiles": {
+      "p01": 0.10253234516106094,
+      "p05": 0.141607436100726,
+      "p50": 0.3326516584684865,
+      "p95": 3.2199753609012585,
+      "p99": 3.586187242144884,
+      "p995": 3.6664056531322666,
+      "p999": 3.767700440723678
+    },
+    "worst": [
+      {
+        "score": 3.923324524509565,
+        "row": 15798,
+        "label": "anomaly",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 7.2265625
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 5.648089671916656
+          },
+          {
+            "feature": "noise_rms_v",
+            "z": 4.711170875592785
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      },
+      {
+        "score": 3.828590343311545,
+        "row": 15901,
+        "label": "anomaly",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 6.8359375
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 5.91873938264702
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          },
+          {
+            "feature": "ptp_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      },
+      {
+        "score": 3.811244570755376,
+        "row": 15904,
+        "label": "suspect",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 6.8359375
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 6.0123629352840435
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          },
+          {
+            "feature": "ptp_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      },
+      {
+        "score": 3.80304705359317,
+        "row": 15991,
+        "label": "suspect",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 6.640625
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 5.941639516770114
+          },
+          {
+            "feature": "noise_rms_v",
+            "z": 4.166256174644555
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      },
+      {
+        "score": 3.780228034159348,
+        "row": 15878,
+        "label": "suspect",
+        "reasons": [
+          {
+            "feature": "low_clip_ratio",
+            "z": 6.4453125
+          },
+          {
+            "feature": "gate_rms_v",
+            "z": 5.971465117100916
+          },
+          {
+            "feature": "noise_rms_v",
+            "z": 4.261429587141352
+          },
+          {
+            "feature": "peak_abs_gate_v",
+            "z": 4.0000000000000036
+          }
+        ]
+      }
+    ]
+  },
+  "synthetic_probes": {
+    "weak_signal_20pct": {
+      "rows": 500,
+      "labels": {
+        "anomaly": 500
+      },
+      "peak_modes": {
+        "peak_minus_100": 372,
+        "peak_center": 128
+      },
+      "score_quantiles": {
+        "p01": 13.495164218269846,
+        "p05": 13.49532577968591,
+        "p50": 13.858468108705516,
+        "p95": 13.86354514076532,
+        "p99": 13.866670752919568,
+        "p995": 13.867451458928684,
+        "p999": 13.868250408638502
+      },
+      "worst": [
+        {
+          "score": 13.86848779566462,
+          "row": 921,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 50.4
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 44.5865377398569
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 41.239421590657756
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 28.0
+            }
+          ]
+        },
+        {
+          "score": 13.868012070161377,
+          "row": 1113,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 49.599999999999994
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 43.65718914553913
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 41.051039076931666
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 27.2
+            }
+          ]
+        },
+        {
+          "score": 13.86791328134307,
+          "row": 986,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 50.4
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 44.566200746648484
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 41.193264580441976
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 28.0
+            }
+          ]
+        },
+        {
+          "score": 13.866980306768552,
+          "row": 859,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 50.4
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 44.587164150871175
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 41.30648221045342
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 28.0
+            }
+          ]
+        },
+        {
+          "score": 13.866773782506446,
+          "row": 610,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 50.4
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 44.60738703532045
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 41.30130718060836
+            },
+            {
+              "feature": "peak_abs_gate_v",
+              "z": 28.0
+            }
+          ]
+        }
+      ]
+    },
+    "empty_like_noise_only": {
+      "rows": 500,
+      "labels": {
+        "anomaly": 500
+      },
+      "peak_modes": {
+        "peak_minus_100": 500
+      },
+      "score_quantiles": {
+        "p01": 15.700104445111426,
+        "p05": 15.719897233623087,
+        "p50": 15.795670538566114,
+        "p95": 15.970962622956542,
+        "p99": 15.982314452351934,
+        "p995": 15.988108460468258,
+        "p999": 16.02084107077672
+      },
+      "worst": [
+        {
+          "score": 16.0477101714984,
+          "row": 43,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 550.4588332524105
+            },
+            {
+              "feature": "snr_db",
+              "z": 62.74710110687812
+            },
+            {
+              "feature": "ptp_v",
+              "z": 49.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 45.26378795196513
+            }
+          ]
+        },
+        {
+          "score": 15.993864278268571,
+          "row": 1241,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 571.9408314300032
+            },
+            {
+              "feature": "snr_db",
+              "z": 62.74710110687814
+            },
+            {
+              "feature": "ptp_v",
+              "z": 49.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 45.11975040834019
+            }
+          ]
+        },
+        {
+          "score": 15.99192622420393,
+          "row": 1054,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 586.6463223601794
+            },
+            {
+              "feature": "snr_db",
+              "z": 62.74710110687815
+            },
+            {
+              "feature": "ptp_v",
+              "z": 49.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 45.11445784689231
+            }
+          ]
+        },
+        {
+          "score": 15.984213570192471,
+          "row": 189,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 587.1929859616902
+            },
+            {
+              "feature": "snr_db",
+              "z": 62.74710110687815
+            },
+            {
+              "feature": "ptp_v",
+              "z": 49.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 45.09331717679301
+            }
+          ]
+        },
+        {
+          "score": 15.984213570192471,
+          "row": 214,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 578.5763169292973
+            },
+            {
+              "feature": "snr_db",
+              "z": 62.747101106878155
+            },
+            {
+              "feature": "ptp_v",
+              "z": 49.199999999999996
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 45.09331717679301
+            }
+          ]
+        }
+      ]
+    },
+    "echo_delayed_35_samples": {
+      "rows": 500,
+      "labels": {
+        "anomaly": 500
+      },
+      "peak_modes": {
+        "peak_minus_100": 372,
+        "peak_plus_50": 128
+      },
+      "score_quantiles": {
+        "p01": 7.246471214479165,
+        "p05": 7.2969921316556885,
+        "p50": 7.5168598286731125,
+        "p95": 8.389010050680652,
+        "p99": 8.459929130032904,
+        "p995": 8.468953933853523,
+        "p999": 8.484619018487134
+      },
+      "worst": [
+        {
+          "score": 8.485997627026322,
+          "row": 1054,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 652.7902639580471
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 10.654385981795278
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 6.504304503423159
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 5.859375
+            }
+          ]
+        },
+        {
+          "score": 8.483234884462817,
+          "row": 283,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 672.2547148090856
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 10.40707514194153
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 6.5530964155626865
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 6.4453125
+            }
+          ]
+        },
+        {
+          "score": 8.471331435709669,
+          "row": 390,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 701.005684195637
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 10.654385981795278
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 6.507555756374206
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 5.6640625
+            }
+          ]
+        },
+        {
+          "score": 8.466528401656852,
+          "row": 227,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 667.3861133988839
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 10.56146702161418
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 6.506742922515396
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 5.859375
+            }
+          ]
+        },
+        {
+          "score": 8.462303424130088,
+          "row": 841,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "template_corr",
+              "z": 648.4996739475591
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 10.561467021614185
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 6.332301717381894
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 5.859375
+            }
+          ]
+        }
+      ]
+    },
+    "bias_low_minus_0p30v": {
+      "rows": 500,
+      "labels": {
+        "anomaly": 500
+      },
+      "peak_modes": {
+        "peak_minus_100": 372,
+        "peak_center": 128
+      },
+      "score_quantiles": {
+        "p01": 4.339880774487519,
+        "p05": 4.438795000550915,
+        "p50": 4.679382612123737,
+        "p95": 5.309753301024304,
+        "p99": 5.343763862073934,
+        "p995": 5.3630647058735486,
+        "p999": 5.811294937678237
+      },
+      "worst": [
+        {
+          "score": 5.966281595201652,
+          "row": 1327,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "low_clip_ratio",
+              "z": 15.4296875
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "ptp_v",
+              "z": 3.9999999999999947
+            },
+            {
+              "feature": "template_corr",
+              "z": 3.231325061479884
+            }
+          ]
+        },
+        {
+          "score": 5.6556870911466905,
+          "row": 336,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "low_clip_ratio",
+              "z": 14.6484375
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "ptp_v",
+              "z": 3.9999999999999947
+            },
+            {
+              "feature": "template_corr",
+              "z": 3.157950398085474
+            }
+          ]
+        },
+        {
+          "score": 5.371462531295303,
+          "row": 43,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 10.0
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 7.3232549860136995
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 5.2734375
+            }
+          ]
+        },
+        {
+          "score": 5.354497227412971,
+          "row": 109,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 10.0
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 7.364616885292563
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 5.46875
+            }
+          ]
+        },
+        {
+          "score": 5.352387476016455,
+          "row": 1054,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "ptp_v",
+              "z": 10.0
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 7.229910236956938
+            },
+            {
+              "feature": "baseline_v",
+              "z": 6.000000000000001
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 5.6640625
+            }
+          ]
+        }
+      ]
+    },
+    "gain_high_clip_1p60x": {
+      "rows": 500,
+      "labels": {
+        "anomaly": 500
+      },
+      "peak_modes": {
+        "peak_minus_100": 500
+      },
+      "score_quantiles": {
+        "p01": 12.33239604916684,
+        "p05": 12.361895484229164,
+        "p50": 13.35803812656456,
+        "p95": 13.492662538270585,
+        "p99": 13.525496430490492,
+        "p995": 13.532321723238775,
+        "p999": 13.564716418062398
+      },
+      "worst": [
+        {
+          "score": 13.566196867993954,
+          "row": 87,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 93.75
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 32.018661148007624
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 22.265625
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 15.839975611692958
+            }
+          ]
+        },
+        {
+          "score": 13.563230034463782,
+          "row": 176,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 92.7734375
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 31.748290240314137
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 22.265625
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 15.724009165450425
+            }
+          ]
+        },
+        {
+          "score": 13.537138380205219,
+          "row": 966,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 93.75
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 32.28815401749725
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 21.484375
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 15.955995082151997
+            }
+          ]
+        },
+        {
+          "score": 13.527407760070988,
+          "row": 687,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 92.7734375
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 31.321626848704263
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 22.4609375
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 15.720563452340574
+            }
+          ]
+        },
+        {
+          "score": 13.526331560912407,
+          "row": 55,
+          "label": "anomaly",
+          "reasons": [
+            {
+              "feature": "high_clip_ratio",
+              "z": 92.7734375
+            },
+            {
+              "feature": "noise_rms_v",
+              "z": 31.321626848704263
+            },
+            {
+              "feature": "low_clip_ratio",
+              "z": 22.4609375
+            },
+            {
+              "feature": "gate_rms_v",
+              "z": 15.720563452340574
+            }
+          ]
+        }
+      ]
+    }
+  }
+}
