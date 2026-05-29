@@ -87,36 +87,11 @@ MQTT_PASSWORD=<password>
 MQTT_TLS=1
 ```
 
-## Optional email notifications
+## Notifications
 
-Email notifications use ordinary SMTP, so the prototype can run on free email
-tiers. For Gmail, enable 2-step verification and use an App Password as
-`SMTP_PASSWORD`.
-
-```bash
-EMAIL_ENABLED=1
-EMAIL_TO=customer@example.com
-EMAIL_FROM=alerts@example.com
-SMTP_HOST=smtp.gmail.com
-SMTP_PORT=587
-SMTP_USERNAME=alerts@example.com
-SMTP_PASSWORD=<gmail-app-password>
-EMAIL_STARTTLS=1
-EMAIL_MIN_GPM=0.5
-EMAIL_COOLDOWN_MINUTES=30
-EMAIL_NOTIFY_DIAGNOSTICS=1
-```
-
-`EMAIL_MIN_GPM` controls flow-alert sensitivity. Diagnostic emails cover
-confirmed acoustic events such as empty pipe or air bubbles; set
-`EMAIL_NOTIFY_DIAGNOSTICS=0` to only email flow-threshold alerts. Notification
-attempts are written to `live_notifications.jsonl` in the data directory or
-Railway volume.
-
-Set these in Railway's Variables tab and redeploy the service. For Gmail,
-`EMAIL_FROM` and `SMTP_USERNAME` should usually be the same account, and
-`SMTP_PASSWORD` must be a Gmail App Password rather than the normal login
-password. Railway does not need the local macOS `SSL_CERT_FILE` setting.
+SMTP email notifications are disabled in this prototype. Keep email/SMTP
+credentials out of Railway variables; the dashboard still shows local review
+messages and writes live analysis/events to the data directory.
 
 ## Persistent data
 

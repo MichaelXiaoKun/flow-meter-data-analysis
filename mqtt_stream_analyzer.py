@@ -37,13 +37,10 @@ import csv
 import json
 import math
 import os
-import smtplib
-import ssl
 import sys
 import time
 import uuid
 from collections import deque
-from email.message import EmailMessage
 from pathlib import Path
 from typing import Any
 
@@ -1331,20 +1328,6 @@ def write_jsonl(path: Path | None, record: dict[str, Any]) -> None:
         f.write(json.dumps(record, separators=(",", ":")) + "\n")
 
 
-def parse_csv_list(raw: str | None) -> list[str]:
-    return [item.strip() for item in (raw or "").split(",") if item.strip()]
-
-
-def env_float(name: str, default: float) -> float:
-    raw = os.environ.get(name)
-    if raw is None or raw.strip() == "":
-        return default
-    try:
-        return float(raw)
-    except ValueError:
-        return default
-
-
 def env_bool(name: str, default: bool) -> bool:
     raw = os.environ.get(name)
     if raw is None:
@@ -1352,215 +1335,28 @@ def env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def normalize_smtp_password(raw: str | None) -> str:
-    # Gmail app passwords are often copied as four space-separated groups.
-    return "".join((raw or "").split())
-
-
 class EmailNotifier:
-    def __init__(
-        self,
-        *,
-        enabled: bool,
-        smtp_host: str,
-        smtp_port: int,
-        smtp_username: str,
-        smtp_password: str,
-        email_from: str,
-        email_to: list[str],
-        starttls: bool,
-        ssl_enabled: bool,
-        min_gpm: float,
-        cooldown_s: float,
-        notifications_jsonl: Path | None,
-        notify_diagnostics: bool,
-    ) -> None:
-        self.enabled = enabled
-        self.smtp_host = smtp_host
-        self.smtp_port = smtp_port
-        self.smtp_username = smtp_username
-        self.smtp_password = normalize_smtp_password(smtp_password)
-        self.email_from = email_from or smtp_username
-        self.email_to = email_to
-        self.starttls = starttls
-        self.ssl_enabled = ssl_enabled
-        self.min_gpm = min_gpm
-        self.cooldown_s = max(0.0, cooldown_s)
+    """No-op placeholder.
+
+    Customer email delivery is intentionally disabled for this prototype. The
+    analyzer still writes data and detection events, but it never opens an SMTP
+    connection or sends external notifications.
+    """
+
+    def __init__(self, *, notifications_jsonl: Path | None) -> None:
         self.notifications_jsonl = notifications_jsonl
-        self.notify_diagnostics = notify_diagnostics
-        self.last_sent_at: dict[str, float] = {}
-        self.warned_disabled = False
         if self.notifications_jsonl is not None:
             self.notifications_jsonl.parent.mkdir(parents=True, exist_ok=True)
 
     @classmethod
     def from_args(cls, args: argparse.Namespace) -> "EmailNotifier":
-        return cls(
-            enabled=args.email_enabled,
-            smtp_host=args.email_smtp_host,
-            smtp_port=args.email_smtp_port,
-            smtp_username=args.email_smtp_username,
-            smtp_password=args.email_smtp_password,
-            email_from=args.email_from,
-            email_to=parse_csv_list(args.email_to),
-            starttls=args.email_starttls,
-            ssl_enabled=args.email_ssl,
-            min_gpm=args.email_min_gpm,
-            cooldown_s=args.email_cooldown_minutes * 60.0,
-            notifications_jsonl=args.notifications_jsonl,
-            notify_diagnostics=args.email_notify_diagnostics,
-        )
-
-    def configured(self) -> bool:
-        return bool(
-            self.enabled
-            and self.smtp_host
-            and self.smtp_port
-            and self.email_from
-            and self.email_to
-            and (not self.smtp_username or self.smtp_password)
-        )
-
-    def warn_if_needed(self) -> None:
-        if self.enabled and not self.configured() and not self.warned_disabled:
-            print(
-                "email notifications enabled but SMTP settings are incomplete; "
-                "set EMAIL_TO, EMAIL_FROM/SMTP_USERNAME, SMTP_HOST, and SMTP_PASSWORD.",
-                file=sys.stderr,
-            )
-            self.warned_disabled = True
+        return cls(notifications_jsonl=args.notifications_jsonl)
 
     def notify_record(self, record: dict[str, Any]) -> None:
-        if not self.enabled:
-            return
-        self.warn_if_needed()
-        flow_gpm = self.record_gpm(record)
-        if flow_gpm is not None and flow_gpm >= self.min_gpm:
-            self.send(
-                key=f"{record.get('serial')}:flow_above_threshold",
-                subject=f"Flow alert {record.get('serial')}: {flow_gpm:.2f} GPM",
-                body=self.record_body(
-                    record,
-                    headline=f"Flow is above the email threshold ({flow_gpm:.2f} GPM >= {self.min_gpm:.2f} GPM).",
-                ),
-                event={
-                    "event": "email_flow_threshold",
-                    "serial": record.get("serial"),
-                    "timestamp": record.get("timestamp"),
-                    "gpm": flow_gpm,
-                    "threshold_gpm": self.min_gpm,
-                },
-            )
+        return
 
     def notify_event(self, event: dict[str, Any], context: dict[str, Any] | None = None) -> None:
-        if not self.enabled:
-            return
-        if not self.notify_diagnostics:
-            return
-        self.warn_if_needed()
-        serial = event.get("serial") or (context or {}).get("serial")
-        event_name = event.get("event", "meter_event")
-        subject = f"Meter diagnostic {serial}: {event_name}"
-        lines = [
-            f"Event: {event_name}",
-            f"Serial: {serial or 'unknown'}",
-            f"Timestamp: {event.get('timestamp') or (context or {}).get('timestamp') or 'unknown'}",
-        ]
-        if context:
-            flow_gpm = self.record_gpm(context)
-            if flow_gpm is not None:
-                lines.append(f"Flow: {flow_gpm:.3f} GPM")
-            health = context.get("flow_meter_health") or {}
-            if isinstance(health, dict) and health.get("score") is not None:
-                lines.append(f"Health: {health.get('score')} / 100 ({health.get('label', 'unknown')})")
-            lines.append(f"Pipe state: {context.get('pipe_state') or 'unknown'}")
-        lines.append("")
-        lines.append("Event payload:")
-        lines.append(json.dumps(event, indent=2, ensure_ascii=False))
-        self.send(
-            key=f"{serial}:{event_name}",
-            subject=subject,
-            body="\n".join(lines),
-            event={
-                "event": "email_diagnostic_event",
-                "serial": serial,
-                "timestamp": event.get("timestamp") or (context or {}).get("timestamp"),
-                "diagnostic_event": event_name,
-            },
-        )
-
-    def record_gpm(self, record: dict[str, Any]) -> float | None:
-        for key in ("corr_fr_m3h", "pub_tfr_m3h", "pub_fr_m3h", "zero_corr_fr_m3h", "raw_flow_rate_m3h"):
-            value = record.get(key)
-            if isinstance(value, (int, float)) and math.isfinite(value):
-                return max(0.0, float(value)) * M3H_TO_GPM
-        return None
-
-    def record_body(self, record: dict[str, Any], *, headline: str) -> str:
-        flow_gpm = self.record_gpm(record)
-        health = record.get("flow_meter_health") or {}
-        health_line = ""
-        if isinstance(health, dict) and health.get("score") is not None:
-            health_line = f"\nHealth: {health.get('score')} / 100 ({health.get('label', 'unknown')})"
-        return (
-            f"{headline}\n\n"
-            f"Serial: {record.get('serial') or 'unknown'}\n"
-            f"Timestamp: {record.get('timestamp') or 'unknown'}\n"
-            f"Flow: {flow_gpm:.3f} GPM\n"
-            f"FR raw: {record.get('pub_fr_m3h')} m3/h\n"
-            f"FS raw: {record.get('pub_fs_mps')} m/s\n"
-            f"Temperature OTS: {record.get('onboard_temperature_c') or record.get('ots')} C\n"
-            f"Diagnose dt: {record.get('diagnose_dt_ns')} ns\n"
-            f"Diagnose tt: {record.get('diagnose_tt_ns')} ns\n"
-            f"SQ: {record.get('sq')} ({record.get('sq_label')})\n"
-            f"Pipe state: {record.get('pipe_state') or 'unknown'}"
-            f"{health_line}\n"
-        )
-
-    def send(self, *, key: str, subject: str, body: str, event: dict[str, Any]) -> None:
-        now = time.time()
-        event = dict(event)
-        event.setdefault("email_subject", subject)
-        event["email_to"] = self.email_to
-        event["cooldown_key"] = key
-        last = self.last_sent_at.get(key, 0.0)
-        if now - last < self.cooldown_s:
-            event["status"] = "cooldown"
-            event["cooldown_remaining_s"] = int(self.cooldown_s - (now - last))
-            write_jsonl(self.notifications_jsonl, event)
-            return
-        if not self.configured():
-            self.last_sent_at[key] = now
-            event["status"] = "disabled"
-            write_jsonl(self.notifications_jsonl, event)
-            return
-        try:
-            message = EmailMessage()
-            message["Subject"] = subject
-            message["From"] = self.email_from
-            message["To"] = ", ".join(self.email_to)
-            message.set_content(body)
-            if self.ssl_enabled:
-                with smtplib.SMTP_SSL(self.smtp_host, self.smtp_port, timeout=10, context=ssl.create_default_context()) as smtp:
-                    self.login_and_send(smtp, message)
-            else:
-                with smtplib.SMTP(self.smtp_host, self.smtp_port, timeout=10) as smtp:
-                    if self.starttls:
-                        smtp.starttls(context=ssl.create_default_context())
-                    self.login_and_send(smtp, message)
-            self.last_sent_at[key] = now
-            event["status"] = "sent"
-            print(f"email notification sent: {subject}")
-        except Exception as exc:  # noqa: BLE001 - notification failure must not stop ingest
-            event["status"] = "error"
-            event["error"] = str(exc)
-            print(f"email notification failed: {exc}", file=sys.stderr)
-        write_jsonl(self.notifications_jsonl, event)
-
-    def login_and_send(self, smtp: smtplib.SMTP, message: EmailMessage) -> None:
-        if self.smtp_username:
-            smtp.login(self.smtp_username, self.smtp_password)
-        smtp.send_message(message)
+        return
 
 
 def save_model(path: Path | None, model: dict[str, Any]) -> None:
@@ -1932,49 +1728,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--notifications-jsonl",
         type=Path,
         default=Path(os.environ.get("NOTIFICATIONS_JSONL", "mqtt_notifications.jsonl")),
-        help="JSONL audit log for email notification attempts.",
-    )
-    parser.add_argument(
-        "--email-enabled",
-        action=argparse.BooleanOptionalAction,
-        default=env_bool("EMAIL_ENABLED", False),
-        help="Enable SMTP email notifications. Defaults from EMAIL_ENABLED.",
-    )
-    parser.add_argument("--email-to", default=os.environ.get("EMAIL_TO", ""))
-    parser.add_argument("--email-from", default=os.environ.get("EMAIL_FROM", ""))
-    parser.add_argument("--email-smtp-host", default=os.environ.get("SMTP_HOST", os.environ.get("EMAIL_SMTP_HOST", "")))
-    parser.add_argument("--email-smtp-port", type=int, default=int(os.environ.get("SMTP_PORT", os.environ.get("EMAIL_SMTP_PORT", "587"))))
-    parser.add_argument("--email-smtp-username", default=os.environ.get("SMTP_USERNAME", os.environ.get("EMAIL_SMTP_USERNAME", "")))
-    parser.add_argument("--email-smtp-password", default=os.environ.get("SMTP_PASSWORD", os.environ.get("EMAIL_SMTP_PASSWORD", "")))
-    parser.add_argument(
-        "--email-starttls",
-        action=argparse.BooleanOptionalAction,
-        default=env_bool("EMAIL_STARTTLS", True),
-        help="Use SMTP STARTTLS for email notifications (default true).",
-    )
-    parser.add_argument(
-        "--email-ssl",
-        action=argparse.BooleanOptionalAction,
-        default=env_bool("EMAIL_SSL", False),
-        help="Use SMTP SSL/TLS from connection start, usually port 465.",
-    )
-    parser.add_argument(
-        "--email-min-gpm",
-        type=float,
-        default=env_float("EMAIL_MIN_GPM", 0.5),
-        help="Send flow email when the best available flow rate is at or above this GPM.",
-    )
-    parser.add_argument(
-        "--email-cooldown-minutes",
-        type=float,
-        default=env_float("EMAIL_COOLDOWN_MINUTES", 30.0),
-        help="Minimum minutes between repeated emails for the same meter/reason.",
-    )
-    parser.add_argument(
-        "--email-notify-diagnostics",
-        action=argparse.BooleanOptionalAction,
-        default=env_bool("EMAIL_NOTIFY_DIAGNOSTICS", True),
-        help="Also email confirmed acoustic diagnostic events such as empty pipe or air bubble.",
+        help="Reserved JSONL path for future notification audit records. SMTP email is disabled.",
     )
     parser.add_argument(
         "--log-mode", choices=["transitions", "every"], default="transitions",
