@@ -44,8 +44,11 @@ from collections import deque
 from pathlib import Path
 from typing import Any
 
+from async_cnn_worker import AsyncCnnScorer
+from backend_zero_tracker import BackendZeroTracker
 from cnn_embedding_runtime import CnnEmbeddingScorer
 from flow_meter_health import compute_realtime_flow_health
+from meter_data_store import MeterDataStore, store_from_env
 from train_oneclass_meter_model import (
     FEATURES,
     anomaly_score,
@@ -662,7 +665,7 @@ class AdaptiveAnalyzer:
         state_enter_frames: int = 3,
         state_recover_frames: int = 5,
         cnn_health_weight: float = 0.0,
-        cnn_scorer: CnnEmbeddingScorer | None = None,
+        cnn_scorer: Any = None,
     ) -> None:
         self.base_model = model
         self.self_train = self_train
@@ -957,9 +960,21 @@ class AdaptiveAnalyzer:
         cnn_analysis = None
         if self.cnn_scorer is not None:
             try:
-                cnn_analysis = self.cnn_scorer.score(samples)
+                if hasattr(self.cnn_scorer, "submit"):
+                    cnn_analysis = self.cnn_scorer.submit(
+                        samples,
+                        metadata={"serial": metadata.get("serial"), "timestamp": state.last_seen},
+                    )
+                else:
+                    cnn_analysis = self.cnn_scorer.score(samples)
             except Exception as exc:  # noqa: BLE001
                 cnn_analysis = {"error": str(exc)}
+
+        cnn_for_health = None
+        if cnn_analysis and "error" not in cnn_analysis:
+            status = cnn_analysis.get("status")
+            if status not in {"queued", "dropped", "error"}:
+                cnn_for_health = cnn_analysis
 
         flow_meter_health = compute_realtime_flow_health(
             features=features,
@@ -972,7 +987,7 @@ class AdaptiveAnalyzer:
             metadata=metadata,
             air_corr_std=air_std,
             air_corr_threshold=air_threshold,
-            cnn=cnn_analysis if cnn_analysis and "error" not in cnn_analysis else None,
+            cnn=cnn_for_health,
             cnn_weight=self.cnn_health_weight,
         )
 
@@ -1335,6 +1350,50 @@ def env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def build_cnn_scorer(args: argparse.Namespace, data_store: MeterDataStore) -> Any:
+    if args.cnn_model is None:
+        print("CNN scoring disabled; ENABLE_CNN=0 or no --cnn-model supplied.")
+        return None
+    if not args.cnn_model.exists():
+        if args.cnn_fallback == "skip":
+            print(f"CNN model not found, continuing without CNN: {args.cnn_model}", file=sys.stderr)
+            return None
+        raise SystemExit(f"CNN model not found: {args.cnn_model}")
+
+    try:
+        scorer = CnnEmbeddingScorer(
+            args.cnn_model,
+            device=args.cnn_device,
+            top_k=args.cnn_top_k,
+            fallback=args.cnn_fallback,
+        )
+    except Exception as exc:  # noqa: BLE001
+        if args.cnn_fallback == "skip":
+            print(f"CNN unavailable, continuing without CNN: {exc}", file=sys.stderr)
+            return None
+        raise
+
+    fallback_text = f" fallback={scorer.device_fallback_reason}" if scorer.device_fallback_reason else ""
+    print(
+        f"CNN scoring enabled mode={args.cnn_mode} requested_device={scorer.requested_device} "
+        f"active_device={scorer.device} model={args.cnn_model}{fallback_text}"
+    )
+
+    if args.cnn_mode == "sync":
+        return scorer
+
+    def on_result(task, cnn_analysis: dict[str, Any]) -> None:
+        data_store.enqueue_cnn_analysis(task.serial, task.timestamp, cnn_analysis)
+
+    return AsyncCnnScorer(
+        scorer,
+        on_result=on_result,
+        batch_size=args.cnn_batch_size,
+        queue_size=args.cnn_queue_size,
+        flush_ms=args.cnn_flush_ms,
+    )
+
+
 class EmailNotifier:
     """No-op placeholder.
 
@@ -1368,7 +1427,13 @@ def save_model(path: Path | None, model: dict[str, Any]) -> None:
 # ── Stdin mode (unchanged contract) ───────────────────────────────────────────
 
 
-def run_stdin(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: GuiCsvWriter | None) -> None:
+def run_stdin(
+    args: argparse.Namespace,
+    analyzer: AdaptiveAnalyzer,
+    zero_tracker: BackendZeroTracker,
+    csv_writer: GuiCsvWriter | None,
+    data_store: MeterDataStore,
+) -> None:
     last_save_at = 0
     for line in sys.stdin:
         line = line.strip()
@@ -1377,8 +1442,10 @@ def run_stdin(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: 
         try:
             samples, metadata = parse_sig_payload(line)
             result = analyzer.analyze(samples, metadata)
+            zero_tracker.enrich(result)
             print(json.dumps(result, ensure_ascii=False))
             write_jsonl(args.log_jsonl, result)
+            data_store.enqueue_frame(result, samples=samples, metadata=metadata)
             if csv_writer is not None:
                 csv_writer.write(metadata, samples)
             total = analyzer.total_updates
@@ -1387,13 +1454,20 @@ def run_stdin(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: 
                 last_save_at = total
         except Exception as exc:  # noqa: BLE001 - surface to stderr per stream contract
             print(json.dumps({"error": str(exc), "payload": line[:200]}), file=sys.stderr)
+    data_store.flush(force=True)
     save_model(args.adapted_model_out, analyzer.snapshot_for_save())
 
 
 # ── MQTT mode (matches the GUI's topic structure) ─────────────────────────────
 
 
-def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: GuiCsvWriter | None) -> None:
+def run_mqtt(
+    args: argparse.Namespace,
+    analyzer: AdaptiveAnalyzer,
+    zero_tracker: BackendZeroTracker,
+    csv_writer: GuiCsvWriter | None,
+    data_store: MeterDataStore,
+) -> None:
     try:
         import paho.mqtt.client as mqtt
     except ModuleNotFoundError as exc:
@@ -1505,7 +1579,9 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
                     args.thr_poor,
                     args.thr_fair,
                 )
+                zero_tracker.enrich(result)
                 write_jsonl(args.log_jsonl, result)
+                data_store.enqueue_frame(result)
                 email_notifier.notify_record(result)
                 if args.publish_topic:
                     client.publish(args.publish_topic, json.dumps(result), qos=args.qos)
@@ -1574,8 +1650,10 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
         except Exception as exc:  # noqa: BLE001
             print(f"analyze failed for {topic}: {exc}", file=sys.stderr)
             return
+        zero_tracker.enrich(result)
 
         write_jsonl(args.log_jsonl, result)
+        data_store.enqueue_frame(result, samples=samples, metadata=metadata)
         email_notifier.notify_record(result)
         if csv_writer is not None:
             csv_writer.write(metadata, samples)
@@ -1648,10 +1726,12 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
                 "sq_label": result["sq_label"],
             }
             write_jsonl(args.events_jsonl, event)
+            data_store.enqueue_event(event, result)
             email_notifier.notify_event(event, result)
         # Confirmed detection events (empty pipe, refilled, ...).
         for ev in result["detection_events"]:
             write_jsonl(args.events_jsonl, ev)
+            data_store.enqueue_event(ev, result)
             email_notifier.notify_event(ev, result)
 
         if args.publish_topic:
@@ -1684,10 +1764,12 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
         last_sync_at = 0.0
         while True:
             client.loop(timeout=1.0)
+            data_store.flush()
             if args.serials_json and (time.time() - last_sync_at) >= args.serials_poll_s:
                 sync_subscriptions()
                 last_sync_at = time.time()
     finally:
+        data_store.flush(force=True)
         save_model(args.adapted_model_out, analyzer.snapshot_for_save())
 
 
@@ -1707,6 +1789,30 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cnn-device", default="auto",
         help="Device for --cnn-model scoring: auto, cpu, mps, or cuda (default auto).",
+    )
+    parser.add_argument(
+        "--cnn-mode",
+        choices=("async", "sync"),
+        default="async",
+        help="Run CNN in a background batch worker or inline with ingest (default async).",
+    )
+    parser.add_argument(
+        "--cnn-fallback",
+        choices=("cpu", "skip", "error"),
+        default="cpu",
+        help="What to do when the requested CNN device is unavailable (default cpu).",
+    )
+    parser.add_argument(
+        "--cnn-batch-size", type=int, default=8,
+        help="Maximum async CNN waveform batch size (default 8).",
+    )
+    parser.add_argument(
+        "--cnn-queue-size", type=int, default=512,
+        help="Maximum pending async CNN waveform queue size before dropping CNN-only work.",
+    )
+    parser.add_argument(
+        "--cnn-flush-ms", type=int, default=100,
+        help="Maximum async CNN batching delay in milliseconds (default 100).",
     )
     parser.add_argument(
         "--cnn-top-k", type=int, default=3,
@@ -1873,15 +1979,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> None:
     args = build_parser().parse_args()
     model = json.loads(args.model.read_text())
-    cnn_scorer = None
-    if args.cnn_model is not None:
-        if not args.cnn_model.exists():
-            raise SystemExit(f"CNN model not found: {args.cnn_model}")
-        cnn_scorer = CnnEmbeddingScorer(
-            args.cnn_model,
-            device=args.cnn_device,
-            top_k=args.cnn_top_k,
-        )
+    data_store = store_from_env()
+    cnn_scorer = build_cnn_scorer(args, data_store)
 
     # When --allow-fair is on, treat 'fair' rows as acceptable too — but
     # 'poor' and 'unknown' still freeze learning. Implemented by widening
@@ -1943,11 +2042,17 @@ def main() -> None:
         cnn_scorer=cnn_scorer,
     )
     csv_writer = GuiCsvWriter(args.save_csv) if args.save_csv else None
+    zero_tracker = BackendZeroTracker.from_env()
 
-    if args.stdin:
-        run_stdin(args, analyzer, csv_writer)
-    else:
-        run_mqtt(args, analyzer, csv_writer)
+    try:
+        if args.stdin:
+            run_stdin(args, analyzer, zero_tracker, csv_writer, data_store)
+        else:
+            run_mqtt(args, analyzer, zero_tracker, csv_writer, data_store)
+    finally:
+        if hasattr(cnn_scorer, "close"):
+            cnn_scorer.close(wait=True)
+        data_store.close()
 
 
 if __name__ == "__main__":

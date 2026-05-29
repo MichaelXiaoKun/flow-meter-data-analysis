@@ -1197,7 +1197,13 @@
   <script>
     const DEFAULT_SERIAL = "BB8100017587";
     const MAX_METERS = 10;
-    const LIVE_BACKLOG_LIMIT = 1200;
+    const LIVE_BACKLOG_LIMIT = 0;
+    const LIVE_FRAME_FLUSH_MS = 150;
+    const LIVE_PERF_LOG_MS = 5000;
+    const LIVE_PANEL_RENDER_THROTTLE_MS = 1000;
+    const CHART_MAX_VISIBLE_POINTS = 1600;
+    const HISTORY_SERIES_RANGE = "24h";
+    const HISTORY_SERIES_MAX_POINTS = CHART_MAX_VISIBLE_POINTS;
     const SERIALS_KEY = "zeroFlowPrototypeSerials";
     const ACTIVE_SERIAL_KEY = "zeroFlowPrototypeActiveSerial";
     const AUTO_CONNECT_KEY = "zeroFlowPrototypeAutoConnect";
@@ -1221,6 +1227,7 @@
       labels: loadLabels(),
       hover: null,
       lang: loadLanguage(),
+      lastMeterTabsRenderAtMs: 0,
       get activeMeter() {
         return ensureMeter(this.activeSerial);
       },
@@ -1874,6 +1881,23 @@
         liveErrorAtMs: null,
         liveSessionId: 0,
         lastQualityRenderKey: "",
+        lastEventListRenderAtMs: 0,
+        lastTrainingRenderAtMs: 0,
+        historySeries: [],
+        historySeriesRange: HISTORY_SERIES_RANGE,
+        historySeriesStatus: "idle",
+        historySeriesLoadedAtMs: 0,
+        historySeriesError: "",
+        pendingLiveRecords: [],
+        liveFlushTimer: null,
+        chartRowsCache: {},
+        perfCounters: {
+          framesReceived: 0,
+          flushes: 0,
+          renders: 0,
+          maxQueueSize: 0,
+          lastLogAtMs: Date.now(),
+        },
         waveform: { status: "idle", key: "" },
         waveformTimer: null,
         waveformCsvText: "",
@@ -2099,6 +2123,7 @@
       if (!normalized || state.meterOrder.length <= 1) return;
       const meter = state.meters[normalized];
       if (meter?.liveSource) meter.liveSource.close();
+      if (meter) clearPendingLiveRecords(meter);
       rememberLiveConnection(normalized, false);
       syncServerSubscriptions({ silent: true });
       state.meterOrder = state.meterOrder.filter((item) => item !== normalized);
@@ -2122,21 +2147,22 @@
       state.meterOrder.forEach((serial) => {
         const meter = ensureMeter(serial);
         const quality = currentDataQuality(meter);
-        const latest = meter.computed[meter.computed.length - 1];
-        const currentUnknown = latest ? shouldHideCurrentFlow(latest, quality, meter) : false;
-        const flowText = latest
-          ? currentUnknown ? "-- GPM" : `${latest.displayedGpm.toFixed(3)} GPM`
-          : "-- GPM";
-        const row = document.createElement("div");
-        row.className = `meter-tab-row${serial === state.activeSerial ? " active" : ""}`;
-        row.dataset.serial = serial;
-        row.innerHTML = `
+      const latest = meter.computed[meter.computed.length - 1];
+      const currentUnknown = latest ? shouldHideCurrentFlow(latest, quality, meter) : false;
+      const flowText = latest
+        ? currentUnknown ? "-- GPM" : `${latest.displayedGpm.toFixed(3)} GPM`
+        : "-- GPM";
+      const historyText = meter.historySeries?.length ? ` · ${meter.historySeries.length} ${meter.historySeriesRange || HISTORY_SERIES_RANGE}` : "";
+      const row = document.createElement("div");
+      row.className = `meter-tab-row${serial === state.activeSerial ? " active" : ""}`;
+      row.dataset.serial = serial;
+      row.innerHTML = `
           <button class="meter-tab" data-action="select">
             <span class="meter-tab-main">
               <span class="meter-serial">${serial}</span>
               <span class="meter-dot ${quality.status}"></span>
             </span>
-            <span class="meter-tab-sub">${quality.trainingStatus} · ${meter.computed.length} samples · ${flowText}</span>
+            <span class="meter-tab-sub">${quality.trainingStatus} · ${meter.computed.length} samples${historyText} · ${flowText}</span>
           </button>
           <button class="meter-remove" data-action="remove" title="${t("removeSerialTitle")}" ${state.meterOrder.length <= 1 ? "disabled" : ""}>×</button>
         `;
@@ -2334,13 +2360,26 @@
       render();
     }
 
-    function recomputeMeter(meter, config = currentConfig()) {
-      meter.computed = runZeroTracker(meter.samples, config, state.labels);
+    function recomputeMeter(meter, config = currentConfig(), options = {}) {
+      if (canUseBackendComputedRows(meter)) {
+        meter.computed = meter.samples.map((sample, index) => computedRowFromBackendSample(sample, index, config));
+      } else {
+        meter.computed = runZeroTracker(meter.samples, config, state.labels);
+      }
+      updateMeterEventsAndSelection(meter, config, options);
+    }
+
+    function canUseBackendComputedRows(meter) {
+      return meter.samples.length > 0 && meter.samples.every((sample) => sample.backendComputed);
+    }
+
+    function updateMeterEventsAndSelection(meter, config = currentConfig(), options = {}) {
+      meter.chartRowsCache = {};
       meter.events = buildEvents(meter.computed, config);
       if (meter.selectedIndex === null || meter.selectedIndex >= meter.computed.length) {
         meter.selectedIndex = meter.events[0]?.index ?? Math.max(0, meter.computed.length - 1);
       }
-      renderMeterTabs();
+      if (options.renderTabs !== false) renderMeterTabs();
     }
 
     function startLive() {
@@ -2367,7 +2406,7 @@
       startLiveForMeter(meter);
     }
 
-    function startLiveForMeter(meter, options = {}) {
+    async function startLiveForMeter(meter, options = {}) {
       stopLive(meter, { render: false, remember: false, sync: false });
       const serial = meter.serial;
       const endpoint = liveEndpoint(serial);
@@ -2382,6 +2421,18 @@
       meter.liveHeartbeatAtMs = null;
       meter.liveErrorAtMs = null;
       meter.lastQualityRenderKey = "";
+      meter.lastEventListRenderAtMs = 0;
+      meter.lastTrainingRenderAtMs = 0;
+      meter.historySeries = [];
+      meter.historySeriesStatus = "idle";
+      meter.historySeriesLoadedAtMs = 0;
+      meter.historySeriesError = "";
+      clearPendingLiveRecords(meter);
+      resetLivePerfCounters(meter);
+      if (options.loadHistory !== false) {
+        await loadHistorySeriesForMeter(meter, { silent: options.silent, sessionId: liveSessionId });
+        if (meter.liveSessionId !== liveSessionId) return;
+      }
       const liveSource = new EventSource(endpoint);
       meter.liveSource = liveSource;
       meter.liveConnected = true;
@@ -2420,7 +2471,7 @@
           meter.liveHeartbeatAtMs = Date.now();
           meter.liveLastFrameAtMs = Date.now();
           meter.liveErrorAtMs = null;
-          appendLiveRecord(JSON.parse(event.data), meter);
+          queueLiveRecord(JSON.parse(event.data), meter);
         } catch (error) {
           showToast(t("toastParseFailed", { message: error.message }));
         }
@@ -2433,6 +2484,7 @@
       if (meter.liveSource) {
         meter.liveSource.close();
       }
+      clearPendingLiveRecords(meter);
       meter.liveSource = null;
       meter.liveConnected = false;
       meter.liveErrorAtMs = Date.now();
@@ -2479,6 +2531,10 @@
       meter.liveHeartbeatAtMs = null;
       meter.liveErrorAtMs = null;
       meter.lastQualityRenderKey = "";
+      meter.lastEventListRenderAtMs = 0;
+      meter.lastTrainingRenderAtMs = 0;
+      clearPendingLiveRecords(meter);
+      resetLivePerfCounters(meter);
       meter.waveformCsvText = "";
       meter.waveformCsvLoadedAtMs = 0;
       meter.waveformAutoLoadedAtMs = 0;
@@ -2532,6 +2588,23 @@
         return `http://127.0.0.1:8765/stream?${params}`;
       }
       return `/stream?${params}`;
+    }
+
+    function apiEndpoint(path, params = {}) {
+      const query = new URLSearchParams(params);
+      if (appToken) query.set("token", appToken);
+      const suffix = query.toString() ? `?${query}` : "";
+      if (window.location.protocol === "file:") {
+        return `http://127.0.0.1:8765${path}${suffix}`;
+      }
+      return `${path}${suffix}`;
+    }
+
+    function historySeriesEndpoint(serial) {
+      return apiEndpoint(`/api/meters/${encodeURIComponent(serial)}/series`, {
+        range: HISTORY_SERIES_RANGE,
+        max_points: String(HISTORY_SERIES_MAX_POINTS),
+      });
     }
 
     function clearDataEndpoint(serial) {
@@ -2601,6 +2674,119 @@
       return subscriptionSyncQueue;
     }
 
+    async function loadHistorySeriesForMeter(meter, options = {}) {
+      meter.historySeriesStatus = "loading";
+      meter.historySeriesError = "";
+      if (isActiveMeter(meter)) {
+        els.dataQuality.textContent = `loading ${HISTORY_SERIES_RANGE} history`;
+        els.liveSource.textContent = "loading history...";
+      }
+      try {
+        const response = await fetch(historySeriesEndpoint(meter.serial), { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (options.sessionId !== undefined && meter.liveSessionId !== options.sessionId) return null;
+        if (!response.ok || payload.ok === false) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        meter.historySeries = Array.isArray(payload.points) ? payload.points : [];
+        meter.historySeriesRange = payload.range || HISTORY_SERIES_RANGE;
+        meter.historySeriesLoadedAtMs = Date.now();
+        meter.historySeriesStatus = "ready";
+        meter.historySeriesError = "";
+        applyHistorySeriesToMeter(meter, meter.historySeries);
+        if (isActiveMeter(meter)) {
+          els.sampleCount.textContent = sampleCountText(meter);
+          els.dataQuality.textContent = currentDataQuality(meter).label;
+        }
+        return payload;
+      } catch (error) {
+        if (options.sessionId !== undefined && meter.liveSessionId !== options.sessionId) return null;
+        meter.historySeries = [];
+        meter.historySeriesStatus = "error";
+        meter.historySeriesError = error.message;
+        if (!options.silent) showToast(`24h history load failed: ${error.message}`);
+        return null;
+      }
+    }
+
+    function applyHistorySeriesToMeter(meter, points = []) {
+      const rows = points
+        .map((point, index) => historyRowFromSeriesPoint(point, index, meter))
+        .filter(Boolean);
+      meter.samples = rows.map((row) => ({ ...row }));
+      meter.computed = rows;
+      meter.events = buildEvents(meter.computed, currentConfig());
+      meter.selectedIndex = meter.computed.length ? meter.computed.length - 1 : null;
+      meter.chartRowsCache = {};
+    }
+
+    function historySeriesMetric(point, field, key = "latest") {
+      const metric = point?.[field];
+      if (metric && typeof metric === "object") {
+        return finiteNumber(metric[key]) ?? finiteNumber(metric.latest) ?? finiteNumber(metric.avg);
+      }
+      return finiteNumber(metric);
+    }
+
+    function historyRowFromSeriesPoint(point, index, meter) {
+      if (!point || !point.timestamp) return null;
+      const config = currentConfig();
+      const timestamp = parseTimestamp(point.timestamp, index);
+      const rawFsMps = historySeriesMetric(point, "raw_fs_mps") ?? 0;
+      const rawFrM3h = historySeriesMetric(point, "raw_fr_m3h") ?? fsToFr(rawFsMps, config.areaM2);
+      const zeroEstimateFs = historySeriesMetric(point, "zero_estimate_fs") ?? 0;
+      const correctedFsMps = historySeriesMetric(point, "corrected_fs_mps") ?? (rawFsMps - zeroEstimateFs);
+      const displayedGpm = historySeriesMetric(point, "displayed_gpm") ?? Math.max(0, m3hToGpm(fsToFr(correctedFsMps, config.areaM2)));
+      const displayedFrM3h = displayedGpm / 4.4028675393;
+      const correctedFrM3h = fsToFr(correctedFsMps, config.areaM2);
+      const zeroEstimateFrM3h = fsToFr(zeroEstimateFs, config.areaM2);
+      return {
+        id: `history-${meter.serial}-${timestamp.toISOString()}-${index}`,
+        index,
+        timestamp,
+        serial: meter.serial,
+        sourceType: "history_series",
+        backendComputed: true,
+        historyBucketCount: point.count || 1,
+        waveformSupported: false,
+        temperatureC: historySeriesMetric(point, "temperature_c") ?? 25,
+        otsTempC: historySeriesMetric(point, "ots_temp_c"),
+        rawFsMps,
+        rawFrM3h,
+        rawGpm: m3hToGpm(rawFrM3h),
+        zeroEstimateFs,
+        zeroEstimateFrM3h,
+        zeroEstimateGpm: m3hToGpm(zeroEstimateFrM3h),
+        correctedFsMps,
+        correctedFrM3h,
+        correctedGpm: m3hToGpm(correctedFrM3h),
+        publishedFsMps: correctedFsMps,
+        publishedFrM3h: correctedFrM3h,
+        publishedGpm: m3hToGpm(correctedFrM3h),
+        displayedFrM3h,
+        displayedGpm,
+        phantomProbability: historySeriesMetric(point, "phantom_probability") ?? 0,
+        eventProbability: historySeriesMetric(point, "event_probability") ?? 0,
+        zeroProbability: historySeriesMetric(point, "zero_probability") ?? 0,
+        stateName: point.state_name || "review",
+        qualityStatus: point.quality_status || "",
+        measurementConfidence: null,
+        dataGap: point.state_name === "data_gap",
+        dataQuality: point.state_name === "data_gap" ? "gap" : "ok",
+        sourceGapMs: 0,
+        arrivalGapMs: 0,
+        tempRate: 0,
+        tempRateRaw: 0,
+        diagnoseDtNs: null,
+        diagnoseTtNs: null,
+        training: null,
+        templateCorr: 0.9965,
+        noiseRms: 0.25,
+        gateRms: 1.05,
+        snrDb: 12.2,
+      };
+    }
+
     async function deleteServerDataForMeter(meter) {
       const response = await fetch(clearDataEndpoint(meter.serial), {
         method: "POST",
@@ -2619,7 +2805,84 @@
       return payload;
     }
 
-    function appendLiveRecord(record, meter = state.activeMeter) {
+    function resetLivePerfCounters(meter) {
+      meter.perfCounters = {
+        framesReceived: 0,
+        flushes: 0,
+        renders: 0,
+        maxQueueSize: 0,
+        lastLogAtMs: Date.now(),
+      };
+    }
+
+    function clearPendingLiveRecords(meter) {
+      if (meter.liveFlushTimer) {
+        clearTimeout(meter.liveFlushTimer);
+      }
+      meter.liveFlushTimer = null;
+      meter.pendingLiveRecords = [];
+    }
+
+    function queueLiveRecord(record, meter = state.activeMeter) {
+      if (!meter.pendingLiveRecords) meter.pendingLiveRecords = [];
+      if (!meter.perfCounters) resetLivePerfCounters(meter);
+      meter.pendingLiveRecords.push(record);
+      meter.perfCounters.framesReceived += 1;
+      meter.perfCounters.maxQueueSize = Math.max(
+        meter.perfCounters.maxQueueSize,
+        meter.pendingLiveRecords.length
+      );
+      logLivePerfCounters(meter);
+      if (meter.liveFlushTimer) return;
+      meter.liveFlushTimer = setTimeout(() => flushLiveRecords(meter), LIVE_FRAME_FLUSH_MS);
+    }
+
+    function flushLiveRecords(meter = state.activeMeter) {
+      meter.liveFlushTimer = null;
+      const records = meter.pendingLiveRecords || [];
+      if (!records.length) return;
+      meter.pendingLiveRecords = [];
+      let appended = 0;
+      let appendedBackendComputed = 0;
+      records.forEach((record) => {
+        try {
+          if (appendLiveRecord(record, meter, { recompute: false, render: false })) {
+            appended += 1;
+            if (recordHasBackendComputed(record)) appendedBackendComputed += 1;
+          }
+        } catch (error) {
+          showToast(t("toastParseFailed", { message: error.message }));
+        }
+      });
+      if (!meter.perfCounters) resetLivePerfCounters(meter);
+      meter.perfCounters.flushes += 1;
+      if (appended > 0) {
+        if (appendedBackendComputed === appended && meter.computed.length === meter.samples.length) {
+          updateMeterEventsAndSelection(meter, currentConfig(), { renderTabs: false });
+        } else {
+          recomputeMeter(meter, currentConfig(), { renderTabs: false });
+        }
+        if (isActiveMeter(meter)) render();
+        else renderMeterTabsThrottled();
+      }
+      logLivePerfCounters(meter);
+    }
+
+    function logLivePerfCounters(meter) {
+      const counters = meter.perfCounters;
+      if (!counters) return;
+      const now = Date.now();
+      if (now - counters.lastLogAtMs < LIVE_PERF_LOG_MS) return;
+      counters.lastLogAtMs = now;
+      if (!window.console || !console.info) return;
+      console.info(
+        `[live perf] serial=${meter.serial} frames=${counters.framesReceived} ` +
+        `flushes=${counters.flushes} renders=${counters.renders} ` +
+        `maxQueue=${counters.maxQueueSize} pending=${meter.pendingLiveRecords?.length || 0}`
+      );
+    }
+
+    function appendLiveRecord(record, meter = state.activeMeter, options = {}) {
       if (!meter.liveGeometryApplied && record.pipe_outer_diameter_mm && record.pipe_wall_thickness_mm && isActiveMeter(meter)) {
         els.pipeOuterDiameter.value = String(record.pipe_outer_diameter_mm);
         els.pipeWallThickness.value = String(record.pipe_wall_thickness_mm);
@@ -2628,19 +2891,101 @@
       }
       const sample = sampleFromLiveRecord(record, meter);
       if (record._stream_replay && meter.clearWatermarkMs && sample.timestamp.getTime() <= meter.clearWatermarkMs) {
-        return;
+        return false;
       }
       const previous = meter.samples[meter.samples.length - 1];
       sample.receivedAtMs = Date.now();
       sample.sourceGapMs = previous ? sample.timestamp - previous.timestamp : 0;
       sample.arrivalGapMs = previous?.receivedAtMs ? sample.receivedAtMs - previous.receivedAtMs : 0;
-      sample.dataGap = sample.sourceGapMs > sampleGapThresholdMs(meter);
+      sample.dataGap = sample.backendDataGap || sample.sourceGapMs > sampleGapThresholdMs(meter);
       sample.dataQuality = sample.dataGap ? "gap" : "ok";
       meter.samples.push(sample);
-      if (meter.samples.length > 1200) meter.samples.shift();
+      const shifted = meter.samples.length > CHART_MAX_VISIBLE_POINTS;
+      if (shifted) meter.samples.shift();
+      if (sample.backendComputed) {
+        if (shifted && meter.computed.length) meter.computed.shift();
+        meter.computed.push(computedRowFromBackendSample(sample, meter.samples.length - 1, currentConfig()));
+        while (meter.computed.length > meter.samples.length) meter.computed.shift();
+        reindexComputedRows(meter);
+        meter.chartRowsCache = {};
+      }
       meter.selectedIndex = meter.samples.length - 1;
-      recomputeMeter(meter);
-      if (isActiveMeter(meter)) render();
+      if (options.recompute !== false) recomputeMeter(meter);
+      if (options.render !== false && isActiveMeter(meter)) render();
+      return true;
+    }
+
+    function recordHasBackendComputed(record) {
+      return Boolean(
+        record?.backend_computed ||
+        record?.zero_tracker_version ||
+        finiteNumber(record?.displayed_gpm) !== null ||
+        finiteNumber(record?.zero_estimate_fs) !== null ||
+        finiteNumber(record?.phantom_probability) !== null ||
+        finiteNumber(record?.event_probability) !== null ||
+        finiteNumber(record?.zero_probability) !== null ||
+        record?.state_name
+      );
+    }
+
+    function reindexComputedRows(meter) {
+      meter.computed.forEach((row, index) => {
+        row.index = index;
+      });
+    }
+
+    function computedRowFromBackendSample(sample, index, config = currentConfig()) {
+      const rawFsMps = sample.rawFsMps ?? frToFs(sample.rawFrM3h, config.areaM2);
+      const rawFrM3h = sample.rawFrM3h ?? fsToFr(rawFsMps, config.areaM2);
+      const zeroEstimateFs = sample.zeroEstimateFs ?? 0;
+      const correctedFsMps = sample.correctedFsMps ?? (rawFsMps - zeroEstimateFs);
+      const zeroEstimateFrM3h = sample.zeroEstimateFrM3h ?? fsToFr(zeroEstimateFs, config.areaM2);
+      const correctedFrM3h = sample.correctedFrM3h ?? fsToFr(correctedFsMps, config.areaM2);
+      const publishedFsMps = sample.publishedFsMps ?? correctedFsMps;
+      const publishedFrM3h = sample.publishedFrM3h ?? fsToFr(publishedFsMps, config.areaM2);
+      const displayedGpm = sample.displayedGpm ?? Math.max(0, m3hToGpm(publishedFrM3h));
+      const displayedFrM3h = sample.displayedFrM3h ?? displayedGpm / 4.4028675393;
+      return {
+        ...sample,
+        index,
+        temperatureC: sample.temperatureC ?? 25,
+        otsTempC: sample.otsTempC ?? null,
+        diagnoseDtNs: sample.diagnoseDtNs ?? null,
+        diagnoseTtNs: sample.diagnoseTtNs ?? null,
+        tempRate: sample.tempRate ?? 0,
+        tempRateRaw: sample.tempRateRaw ?? 0,
+        rawFsMps,
+        rawFrM3h,
+        rawGpm: sample.rawGpm ?? m3hToGpm(rawFrM3h),
+        zeroEstimateFs,
+        zeroEstimateFrM3h,
+        zeroEstimateGpm: sample.zeroEstimateGpm ?? m3hToGpm(zeroEstimateFrM3h),
+        correctedFsMps,
+        correctedFrM3h,
+        correctedGpm: sample.correctedGpm ?? m3hToGpm(correctedFrM3h),
+        publishedFsMps,
+        publishedFrM3h,
+        publishedGpm: sample.publishedGpm ?? m3hToGpm(publishedFrM3h),
+        displayedFrM3h,
+        displayedGpm,
+        autoCorrected: Boolean(sample.autoCorrected),
+        displaySuppressionReason: sample.displaySuppressionReason || "",
+        correctionAmplification: sample.correctionAmplification ?? 0,
+        correctionOverrun: Boolean(sample.correctionOverrun),
+        waveformDrift: sample.waveformDrift ?? 0,
+        zeroProbability: sample.zeroProbability ?? 0,
+        phantomProbability: sample.phantomProbability ?? 0,
+        eventProbability: sample.eventProbability ?? 0,
+        measurementConfidence: sample.measurementConfidence,
+        zeroStability: sample.zeroStability ?? 0,
+        noFlowRun: sample.noFlowRun ?? 0,
+        stateName: sample.stateName || "review",
+        templateCorr: sample.templateCorr ?? 0.9965,
+        noiseRms: sample.noiseRms ?? 0.25,
+        gateRms: sample.gateRms ?? 1.05,
+        snrDb: sample.snrDb ?? 12.2,
+        userLabel: state.labels[sample.id] || "",
+      };
     }
 
     function sampleFromLiveRecord(record, meter = state.activeMeter) {
@@ -2665,16 +3010,53 @@
       const timestamp = parseTimestamp(record.timestamp || record.server_timestamp || Date.now(), meter.samples.length);
       const sourceType = record.source_type || record.sourceType || "";
       const isPubOnly = sourceType === "pub_only" || record.waveform_supported === false;
+      const backendComputed = recordHasBackendComputed(record);
       return {
         id: `live-${record.serial || meter.serial || "meter"}-${timestamp.toISOString()}-${meter.samples.length}`,
         timestamp,
         serial: record.serial || meter.serial || "",
         sourceType,
+        backendComputed,
+        zeroTrackerVersion: record.zero_tracker_version || "",
         waveformSupported: record.waveform_supported !== false,
         temperatureC: fallbackTemp,
         otsTempC: onboardTemp,
         rawFsMps,
         rawFrM3h,
+        rawGpm: finiteNumber(record.raw_gpm),
+        rawThermalTempC: finiteNumber(record.raw_thermal_temp_c),
+        thermalTempC: finiteNumber(record.thermal_temp_c),
+        thermalDeltaC: finiteNumber(record.thermal_delta_c),
+        thermalGradientC: finiteNumber(record.thermal_gradient_c),
+        thermalGradientScore: finiteNumber(record.thermal_gradient_score),
+        tempRate: finiteNumber(record.temp_rate_c_per_min),
+        tempRateRaw: finiteNumber(record.temp_rate_raw_c_per_min),
+        tempModelFs: finiteNumber(record.temp_model_fs),
+        adaptiveZeroFs: finiteNumber(record.adaptive_zero_fs),
+        zeroEstimateFs: finiteNumber(record.zero_estimate_fs),
+        zeroEstimateFrM3h: finiteNumber(record.zero_estimate_fr_m3h),
+        zeroEstimateGpm: finiteNumber(record.zero_estimate_gpm),
+        correctedFsMps: finiteNumber(record.corrected_fs_mps),
+        correctedFrM3h: finiteNumber(record.corrected_fr_m3h),
+        correctedGpm: finiteNumber(record.corrected_gpm),
+        publishedFsMps: finiteNumber(record.published_fs_mps),
+        publishedFrM3h: finiteNumber(record.published_fr_m3h),
+        publishedGpm: finiteNumber(record.published_gpm),
+        displayedFrM3h: finiteNumber(record.displayed_fr_m3h),
+        displayedGpm: finiteNumber(record.displayed_gpm),
+        autoCorrected: Boolean(record.auto_corrected),
+        displaySuppressionReason: record.display_suppression_reason || "",
+        correctionAmplification: finiteNumber(record.correction_amplification),
+        correctionOverrun: Boolean(record.correction_overrun),
+        waveformDrift: finiteNumber(record.waveform_drift),
+        zeroProbability: finiteNumber(record.zero_probability),
+        phantomProbability: finiteNumber(record.phantom_probability),
+        eventProbability: finiteNumber(record.event_probability),
+        zeroStability: finiteNumber(record.zero_stability),
+        noFlowRun: finiteNumber(record.no_flow_run),
+        stateName: record.state_name || "",
+        qualityStatus: record.quality_status || "",
+        backendDataGap: record.data_gap === true,
         diagnoseDtNs: finiteNumber(record.diagnose_dt_ns),
         diagnoseTtNs: finiteNumber(record.diagnose_tt_ns),
         analyzerScore: finiteNumber(record.score),
@@ -2948,16 +3330,60 @@
     }
 
     function render() {
+      const meter = state.activeMeter;
+      if (meter?.perfCounters) {
+        meter.perfCounters.renders += 1;
+        logLivePerfCounters(meter);
+      }
       renderKpis();
-      renderEvents();
+      renderEventsThrottled(meter);
       renderAuditTable();
       renderNotice();
-      renderTraining();
-      scheduleWaveformLoad();
+      renderTrainingThrottled(meter);
       resizeAllCharts();
-      els.sampleCount.textContent = `${state.computed.length} samples`;
+      els.sampleCount.textContent = sampleCountText(meter);
       els.eventCount.textContent = String(state.events.length);
       renderRunStatus();
+      renderMeterTabsThrottled();
+    }
+
+    function sampleCountText(meter = state.activeMeter) {
+      const liveText = `${meter.computed.length} samples`;
+      const historyCount = meter.historySeries?.length || 0;
+      if (!historyCount) return liveText;
+      return `${liveText} / ${historyCount} ${meter.historySeriesRange || HISTORY_SERIES_RANGE}`;
+    }
+
+    function hasActiveLiveStreams() {
+      return state.meterOrder.some((serial) => state.meters[serial]?.liveSource);
+    }
+
+    function shouldThrottlePanelRender(meter, key) {
+      if (!meter?.liveSource) return false;
+      const now = Date.now();
+      if (now - (meter[key] || 0) < LIVE_PANEL_RENDER_THROTTLE_MS) return true;
+      meter[key] = now;
+      return false;
+    }
+
+    function renderEventsThrottled(meter = state.activeMeter) {
+      if (shouldThrottlePanelRender(meter, "lastEventListRenderAtMs")) return;
+      renderEvents();
+    }
+
+    function renderTrainingThrottled(meter = state.activeMeter) {
+      if (shouldThrottlePanelRender(meter, "lastTrainingRenderAtMs")) return;
+      renderTraining();
+    }
+
+    function renderMeterTabsThrottled() {
+      if (!hasActiveLiveStreams()) {
+        renderMeterTabs();
+        return;
+      }
+      const now = Date.now();
+      if (now - state.lastMeterTabsRenderAtMs < LIVE_PANEL_RENDER_THROTTLE_MS) return;
+      state.lastMeterTabsRenderAtMs = now;
       renderMeterTabs();
     }
 
@@ -3022,7 +3448,7 @@
       const row = state.computed[state.selectedIndex] || state.computed[state.computed.length - 1];
       const training = row?.training || null;
       const quality = currentDataQuality();
-      els.trainingStatus.textContent = quality.trainingStatus;
+      els.trainingStatus.textContent = meterHistoryLabel(state.activeMeter, quality.trainingStatus);
       els.trainingStatus.className = quality.status === "live" || quality.status === "offline" ? "status-pill green" : quality.status === "disconnected" ? "status-pill red" : "status-pill amber";
       els.trainUpdates.textContent = training ? `${training.updates ?? 0} / ${training.total_updates ?? 0}` : "--";
       els.trainStable.textContent = training?.stable_ratio === undefined ? "--" : `${Math.round(training.stable_ratio * 100)}%`;
@@ -3032,6 +3458,15 @@
       if (!state.liveSource) {
         els.liveSource.textContent = state.samples.some((sample) => sample.id?.startsWith("live-")) ? "disconnected" : "not connected";
       }
+    }
+
+    function meterHistoryLabel(meter, fallback) {
+      if (meter.historySeriesStatus === "ready") {
+        return `${fallback} + ${meter.historySeries?.length || 0} ${meter.historySeriesRange || HISTORY_SERIES_RANGE}`;
+      }
+      if (meter.historySeriesStatus === "loading") return `${fallback} + loading history`;
+      if (meter.historySeriesStatus === "error") return `${fallback} + history error`;
+      return fallback;
     }
 
     function refreshLiveQuality() {
@@ -3746,21 +4181,90 @@
       return new Date(Date.now() + index * 120000);
     }
 
+    function chartRows(keys, sourceRows = state.computed, maxPoints = CHART_MAX_VISIBLE_POINTS) {
+      const meter = state.activeMeter;
+      if (!meter.chartRowsCache) meter.chartRowsCache = {};
+      const cacheKey = keys.join("|");
+      const cached = meter.chartRowsCache[cacheKey];
+      if (
+        cached &&
+        cached.sourceRows === sourceRows &&
+        cached.selectedIndex === state.selectedIndex &&
+        cached.maxPoints === maxPoints
+      ) {
+        return cached.rows;
+      }
+      const rows = downsampleRowsForChart(sourceRows, keys, maxPoints);
+      meter.chartRowsCache[cacheKey] = {
+        sourceRows,
+        selectedIndex: state.selectedIndex,
+        maxPoints,
+        rows,
+      };
+      return rows;
+    }
+
+    function downsampleRowsForChart(rows, keys, maxPoints) {
+      if (rows.length <= maxPoints) return rows;
+      const selected = Number.isInteger(state.selectedIndex) ? state.selectedIndex : rows.length - 1;
+      const selectedRows = new Map();
+      const addIndex = (index) => {
+        const safeIndex = clamp(Math.round(index), 0, rows.length - 1);
+        const row = rows[safeIndex];
+        if (row) selectedRows.set(row.index ?? safeIndex, row);
+      };
+      addIndex(0);
+      addIndex(rows.length - 1);
+      if (selected >= 0 && selected < rows.length) addIndex(selected);
+
+      const valuesPerBucket = Math.max(keys.length * 2 + 2, 2);
+      const bucketCount = Math.max(1, Math.floor((maxPoints - selectedRows.size) / valuesPerBucket));
+      for (let bucket = 0; bucket < bucketCount; bucket += 1) {
+        const start = Math.floor((bucket * rows.length) / bucketCount);
+        const end = Math.max(start + 1, Math.floor(((bucket + 1) * rows.length) / bucketCount));
+        addIndex(start);
+        addIndex(end - 1);
+        keys.forEach((key) => {
+          let minIndex = -1;
+          let maxIndex = -1;
+          let minValue = Number.POSITIVE_INFINITY;
+          let maxValue = Number.NEGATIVE_INFINITY;
+          for (let i = start; i < end; i += 1) {
+            const value = rows[i]?.[key];
+            if (!Number.isFinite(value)) continue;
+            if (value < minValue) {
+              minValue = value;
+              minIndex = i;
+            }
+            if (value > maxValue) {
+              maxValue = value;
+              maxIndex = i;
+            }
+          }
+          if (minIndex >= 0) addIndex(minIndex);
+          if (maxIndex >= 0) addIndex(maxIndex);
+        });
+      }
+      return [...selectedRows.values()].sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    }
+
     function drawTempChart(ctx, w, h) {
-      const rows = state.computed;
+      const rows = chartRows(["temperatureC", "tempRate"]);
       if (!rows.length) return;
+      const tempRange = range(rows, "temperatureC");
+      const rateRange = symmetricRange(rows, "tempRate");
       drawAxes(ctx, w, h);
-      line(ctx, rows.map((row, i) => [i, row.temperatureC]), w, h, range(rows, "temperatureC"), color.temp, 2);
-      line(ctx, rows.map((row, i) => [i, row.tempRate]), w, h, symmetricRange(rows, "tempRate"), color.rate, 1.8);
-      drawSelected(ctx, w, h, rows.length);
-      drawTimeHover(ctx, w, h, rows.length, [
-        { value: (row) => row.temperatureC, range: range(rows, "temperatureC"), color: color.temp },
-        { value: (row) => row.tempRate, range: symmetricRange(rows, "tempRate"), color: color.rate },
+      line(ctx, rows.map((row, i) => [i, row.temperatureC]), w, h, tempRange, color.temp, 2);
+      line(ctx, rows.map((row, i) => [i, row.tempRate]), w, h, rateRange, color.rate, 1.8);
+      drawSelected(ctx, w, h, rows);
+      drawTimeHover(ctx, w, h, rows, [
+        { value: (row) => row.temperatureC, range: tempRange, color: color.temp },
+        { value: (row) => row.tempRate, range: rateRange, color: color.rate },
       ]);
     }
 
     function drawFlowChart(ctx, w, h) {
-      const rows = state.computed;
+      const rows = chartRows(["rawFrM3h", "zeroEstimateFrM3h", "correctedFrM3h", "publishedFrM3h"]);
       if (!rows.length) return;
       const values = rows.flatMap((row) => [row.rawFrM3h, row.zeroEstimateFrM3h, row.correctedFrM3h, row.publishedFrM3h]);
       const yRange = paddedRange(values);
@@ -3771,8 +4275,8 @@
       line(ctx, rows.map((row, i) => [i, row.correctedFrM3h]), w, h, yRange, color.corrected, 2);
       line(ctx, rows.map((row, i) => [i, row.publishedFrM3h]), w, h, yRange, color.published, 1.8);
       drawZeroLine(ctx, w, h, yRange);
-      drawSelected(ctx, w, h, rows.length);
-      drawTimeHover(ctx, w, h, rows.length, [
+      drawSelected(ctx, w, h, rows);
+      drawTimeHover(ctx, w, h, rows, [
         { value: (row) => row.rawFrM3h, range: yRange, color: color.raw },
         { value: (row) => row.zeroEstimateFrM3h, range: yRange, color: color.zero },
         { value: (row) => row.correctedFrM3h, range: yRange, color: color.corrected },
@@ -3781,7 +4285,7 @@
     }
 
     function drawDisplayChart(ctx, w, h) {
-      const rows = state.computed;
+      const rows = chartRows(["displayedGpm"]);
       if (!rows.length) return;
       const yRange = displayGpmRange(rows);
       drawAxes(ctx, w, h);
@@ -3790,22 +4294,22 @@
       line(ctx, rows.map((row, i) => [i, row.displayedGpm]), w, h, yRange, color.published, 2.2);
       drawZeroLine(ctx, w, h, yRange);
       drawPositiveGpmMarkers(ctx, rows, w, h, yRange);
-      drawSelected(ctx, w, h, rows.length);
-      drawTimeHover(ctx, w, h, rows.length, [
+      drawSelected(ctx, w, h, rows);
+      drawTimeHover(ctx, w, h, rows, [
         { value: (row) => row.displayedGpm, range: yRange, color: color.published },
       ]);
     }
 
     function drawProbabilityChart(ctx, w, h) {
-      const rows = state.computed;
+      const rows = chartRows(["phantomProbability", "eventProbability", "zeroProbability"]);
       if (!rows.length) return;
       const yRange = [0, 1];
       drawAxes(ctx, w, h);
       line(ctx, rows.map((row, i) => [i, row.phantomProbability]), w, h, yRange, color.phantom, 2);
       line(ctx, rows.map((row, i) => [i, row.eventProbability]), w, h, yRange, color.event, 2);
       line(ctx, rows.map((row, i) => [i, row.zeroProbability]), w, h, yRange, color.zeroProb, 2);
-      drawSelected(ctx, w, h, rows.length);
-      drawTimeHover(ctx, w, h, rows.length, [
+      drawSelected(ctx, w, h, rows);
+      drawTimeHover(ctx, w, h, rows, [
         { value: (row) => row.phantomProbability, range: yRange, color: color.phantom },
         { value: (row) => row.eventProbability, range: yRange, color: color.event },
         { value: (row) => row.zeroProbability, range: yRange, color: color.zeroProb },
@@ -3885,16 +4389,25 @@
       const pad = chartPad();
       if (localX < pad.left - 8 || localX > w - pad.right + 8 || localY < pad.top - 12 || localY > h - pad.bottom + 12) return null;
       if (chartId === "waveformChart") return buildWaveformHover(chartId, localX, w);
-      const rows = state.computed;
+      const rows = chartRowsForChartId(chartId);
       if (!rows.length) return null;
-      const index = indexFromX(localX, rows.length, w);
-      const row = rows[index];
+      const visibleIndex = indexFromX(localX, rows.length, w);
+      const row = rows[visibleIndex];
       if (!row) return null;
       return {
         chartId,
-        index,
+        index: row.index,
+        visibleIndex,
         html: timeSeriesTooltip(chartId, row),
       };
+    }
+
+    function chartRowsForChartId(chartId) {
+      if (chartId === "tempChart") return chartRows(["temperatureC", "tempRate"]);
+      if (chartId === "flowChart") return chartRows(["rawFrM3h", "zeroEstimateFrM3h", "correctedFrM3h", "publishedFrM3h"]);
+      if (chartId === "displayChart") return chartRows(["displayedGpm"]);
+      if (chartId === "probChart") return chartRows(["phantomProbability", "eventProbability", "zeroProbability"]);
+      return state.computed;
     }
 
     function buildWaveformHover(chartId, localX, w) {
@@ -4123,10 +4636,12 @@
       ctx.textAlign = "left";
     }
 
-    function drawSelected(ctx, w, h, count) {
-      if (state.selectedIndex === null || count < 2) return;
+    function drawSelected(ctx, w, h, rows) {
+      if (state.selectedIndex === null || rows.length < 2) return;
+      const selectedVisibleIndex = rows.findIndex((row) => row.index === state.selectedIndex);
+      if (selectedVisibleIndex < 0) return;
       const pad = chartPad();
-      const x = pad.left + (w - pad.left - pad.right) * (state.selectedIndex / (count - 1));
+      const x = pad.left + (w - pad.left - pad.right) * (selectedVisibleIndex / (rows.length - 1));
       ctx.strokeStyle = "#111827";
       ctx.lineWidth = 1;
       ctx.beginPath();
@@ -4135,12 +4650,13 @@
       ctx.stroke();
     }
 
-    function drawTimeHover(ctx, w, h, count, series) {
-      if (state.hover?.chartId !== ctx.canvas.id || state.hover.index === undefined || count < 2) return;
-      const index = clamp(state.hover.index, 0, count - 1);
-      const row = state.computed[index];
+    function drawTimeHover(ctx, w, h, rows, series) {
+      if (state.hover?.chartId !== ctx.canvas.id || state.hover.index === undefined || rows.length < 2) return;
+      const visibleIndex = rows.findIndex((row) => row.index === state.hover.index);
+      if (visibleIndex < 0) return;
+      const row = rows[visibleIndex];
       if (!row) return;
-      const x = xForIndex(index, count, w);
+      const x = xForIndex(visibleIndex, rows.length, w);
       drawHoverLine(ctx, x, w, h);
       series.forEach((item) => {
         const value = item.value(row);
