@@ -86,11 +86,13 @@ analyzer process keeps ingesting MQTT and writing the JSONL/CSV files.
 - `/temperature_zero_flow_prototype.html` - main UI.
 - `/stream?serial=BB8100017587&backlog=300` - Server-Sent Events.
 - `/waveform.csv?serial=BB8100017587` - waveform CSV used by the UI.
+- `POST /clear-data?serial=BB8100017587` - remove that serial's file-backed
+  analysis rows, event rows, and waveform CSV rows.
 - `/health` - Railway health check.
 - `/status` - health and file-path status.
 
-When `APP_TOKEN` is set, `/stream`, `/waveform.csv`, and `/status` require the
-same `?token=...` query parameter.
+When `APP_TOKEN` is set, `/stream`, `/waveform.csv`, `/clear-data`, and
+`/status` require the same `?token=...` query parameter.
 
 ## Local smoke test
 

@@ -122,6 +122,7 @@ def analyzer_command(data: Path, serial: str) -> list[str]:
 def server_command(data: Path, serial: str) -> list[str]:
     port = os.environ.get("PORT", "8765")
     log_path = env_path("ANALYSIS_LOG_PATH", data / "live_mqtt_analysis.jsonl")
+    events_path = env_path("EVENTS_LOG_PATH", data / "live_mqtt_events.jsonl")
     csv_path = env_path("WAVEFORM_CSV_PATH", data / f"live_{serial}_realtime.csv")
     return [
         sys.executable,
@@ -132,6 +133,8 @@ def server_command(data: Path, serial: str) -> list[str]:
         port,
         "--log",
         str(log_path),
+        "--events-log",
+        str(events_path),
         "--waveform-csv",
         str(csv_path),
         "--app-token",

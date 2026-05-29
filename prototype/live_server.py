@@ -9,6 +9,7 @@ matching frames to the page.
 from __future__ import annotations
 
 import argparse
+import csv
 import json
 import time
 from collections import deque
@@ -46,6 +47,50 @@ def parse_record(line: str) -> dict | None:
     except json.JSONDecodeError:
         return None
     return record if isinstance(record, dict) else None
+
+
+def compact_jsonl_by_serial(path: Path, serial: str) -> dict[str, int | str]:
+    if not path.exists():
+        return {"path": str(path), "kept": 0, "removed": 0, "status": "missing"}
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    kept = 0
+    removed = 0
+    with path.open("r", encoding="utf-8", errors="ignore") as src, tmp.open("w", encoding="utf-8") as dst:
+        for line in src:
+            record = parse_record(line)
+            if record is not None and record.get("serial") == serial:
+                removed += 1
+                continue
+            dst.write(line)
+            kept += 1
+    tmp.replace(path)
+    return {"path": str(path), "kept": kept, "removed": removed, "status": "ok"}
+
+
+def compact_csv_by_serial(path: Path, serial: str) -> dict[str, int | str]:
+    if not path.exists():
+        return {"path": str(path), "kept": 0, "removed": 0, "status": "missing"}
+    tmp = path.with_suffix(path.suffix + ".tmp")
+    kept = 0
+    removed = 0
+    with path.open("r", encoding="utf-8", newline="", errors="ignore") as src, tmp.open("w", encoding="utf-8", newline="") as dst:
+        reader = csv.reader(src)
+        writer = csv.writer(dst)
+        try:
+            header = next(reader)
+        except StopIteration:
+            tmp.replace(path)
+            return {"path": str(path), "kept": 0, "removed": 0, "status": "empty"}
+        writer.writerow(header)
+        serial_idx = header.index("serial") if "serial" in header else -1
+        for row in reader:
+            if serial_idx >= 0 and serial_idx < len(row) and row[serial_idx] == serial:
+                removed += 1
+                continue
+            writer.writerow(row)
+            kept += 1
+    tmp.replace(path)
+    return {"path": str(path), "kept": kept, "removed": removed, "status": "ok"}
 
 
 class LiveHandler(SimpleHTTPRequestHandler):
@@ -89,6 +134,16 @@ class LiveHandler(SimpleHTTPRequestHandler):
             return
         super().do_GET()
 
+    def do_POST(self) -> None:  # noqa: N802
+        parsed = urlparse(self.path)
+        if parsed.path == "/clear-data":
+            if not self.is_authorized(parsed.query):
+                self.unauthorized()
+                return
+            self.clear_data(parsed.query)
+            return
+        self.send_error(HTTPStatus.NOT_FOUND)
+
     def health(self) -> None:
         body = b'{"ok":true}\n'
         self.send_response(HTTPStatus.OK)
@@ -126,11 +181,47 @@ class LiveHandler(SimpleHTTPRequestHandler):
                 "exists": self.server.log_path.exists(),  # type: ignore[attr-defined]
                 "waveform_csv_path": str(self.server.waveform_csv_path),  # type: ignore[attr-defined]
                 "waveform_csv_exists": self.server.waveform_csv_path.exists(),  # type: ignore[attr-defined]
+                "events_log_path": str(self.server.events_log_path),  # type: ignore[attr-defined]
+                "events_log_exists": self.server.events_log_path.exists(),  # type: ignore[attr-defined]
             },
             indent=2,
         ).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def clear_data(self, query: str) -> None:
+        params = parse_qs(query)
+        serial = (params.get("serial", [""])[0] or "").strip()
+        if not serial:
+            body = b'{"ok":false,"error":"serial required"}\n'
+            self.send_response(HTTPStatus.BAD_REQUEST)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+
+        results = {
+            "analysis": compact_jsonl_by_serial(self.server.log_path, serial),  # type: ignore[attr-defined]
+            "events": compact_jsonl_by_serial(self.server.events_log_path, serial),  # type: ignore[attr-defined]
+            "waveform_csv": compact_csv_by_serial(self.server.waveform_csv_path, serial),  # type: ignore[attr-defined]
+        }
+        removed = sum(int(result.get("removed", 0)) for result in results.values())
+        body = json.dumps(
+            {
+                "ok": True,
+                "serial": serial,
+                "removed": removed,
+                "results": results,
+            },
+            separators=(",", ":"),
+        ).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -167,8 +258,12 @@ class LiveHandler(SimpleHTTPRequestHandler):
         self.send_header("Connection", "keep-alive")
         self.end_headers()
 
-        def send_event(event: str, payload: dict) -> None:
-            data = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
+        def send_event(event: str, payload: dict, *, replay: bool | None = None) -> None:
+            out = dict(payload)
+            if replay is not None:
+                out["_stream_replay"] = replay
+                out["_stream_sent_at_ms"] = int(time.time() * 1000)
+            data = json.dumps(out, separators=(",", ":"), ensure_ascii=False)
             self.wfile.write(f"event: {event}\n".encode("utf-8"))
             self.wfile.write(f"data: {data}\n\n".encode("utf-8"))
             self.wfile.flush()
@@ -176,7 +271,7 @@ class LiveHandler(SimpleHTTPRequestHandler):
         try:
             send_event("status", {"status": "connected", "serial": serial, "log_path": str(path)})
             for record in iter_backlog(path, serial=serial, limit=backlog):
-                send_event("frame", record)
+                send_event("frame", record, replay=True)
 
             offset = path.stat().st_size if path.exists() else 0
             while True:
@@ -198,7 +293,7 @@ class LiveHandler(SimpleHTTPRequestHandler):
                             continue
                         if serial and record.get("serial") != serial:
                             continue
-                        send_event("frame", record)
+                        send_event("frame", record, replay=False)
                 time.sleep(poll_s)
         except (BrokenPipeError, ConnectionResetError):
             return
@@ -209,6 +304,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--log", type=Path, default=REPO / "mqtt_analysis_log.jsonl")
+    parser.add_argument(
+        "--events-log",
+        type=Path,
+        default=REPO / "mqtt_events.jsonl",
+        help="JSONL events file cleaned by /clear-data.",
+    )
     parser.add_argument(
         "--waveform-csv",
         type=Path,
@@ -227,10 +328,12 @@ def main() -> None:
     args = build_parser().parse_args()
     server = ThreadingHTTPServer((args.host, args.port), LiveHandler)
     server.log_path = args.log.resolve()  # type: ignore[attr-defined]
+    server.events_log_path = args.events_log.resolve()  # type: ignore[attr-defined]
     server.waveform_csv_path = args.waveform_csv.resolve()  # type: ignore[attr-defined]
     server.app_token = args.app_token  # type: ignore[attr-defined]
     print(f"Serving prototype: http://{args.host}:{args.port}/temperature_zero_flow_prototype.html")
     print(f"Streaming JSONL:   {server.log_path}")
+    print(f"Events JSONL:      {server.events_log_path}")
     print(f"Waveform CSV:      {server.waveform_csv_path}")
     print(f"Data auth:         {'enabled' if args.app_token else 'disabled'}")
     server.serve_forever()

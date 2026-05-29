@@ -1182,11 +1182,13 @@
     const SERIALS_KEY = "zeroFlowPrototypeSerials";
     const ACTIVE_SERIAL_KEY = "zeroFlowPrototypeActiveSerial";
     const AUTO_CONNECT_KEY = "zeroFlowPrototypeAutoConnect";
+    const CLEAR_WATERMARKS_KEY = "zeroFlowPrototypeClearWatermarks";
 
     const state = {
       activeSerial: DEFAULT_SERIAL,
       meterOrder: [],
       meters: {},
+      clearWatermarks: loadClearWatermarks(),
       labels: loadLabels(),
       hover: null,
       lang: loadLanguage(),
@@ -1405,6 +1407,9 @@
         serialExists: "{serial} 已在列表中",
         removedSerial: "已移除 {serial}",
         removeSerialTitle: "移除该 serial",
+        deleting: "正在删除...",
+        backendDeleteOk: "已删除 {serial} 的后端历史数据：{count} 行",
+        backendDeleteFailed: "后端删除失败：{message}",
         resetLabelsTitle: "清空本地用户确认标签",
         importCsv: "导入 CSV",
         exportLabels: "导出标签",
@@ -1520,6 +1525,9 @@
         serialExists: "{serial} is already in the list",
         removedSerial: "Removed {serial}",
         removeSerialTitle: "Remove this serial",
+        deleting: "Deleting...",
+        backendDeleteOk: "Deleted backend history for {serial}: {count} rows",
+        backendDeleteFailed: "Backend delete failed: {message}",
         resetLabelsTitle: "Clear local user labels",
         importCsv: "Import CSV",
         exportLabels: "Export labels",
@@ -1637,6 +1645,7 @@
         waveformTimer: null,
         waveformCsvText: "",
         waveformCsvLoadedAtMs: 0,
+        clearWatermarkMs: Number(state.clearWatermarks?.[serial] || 0),
       };
     }
 
@@ -1652,6 +1661,25 @@
       } catch {
         return [DEFAULT_SERIAL];
       }
+    }
+
+    function loadClearWatermarks() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(CLEAR_WATERMARKS_KEY) || "{}");
+        return parsed && typeof parsed === "object" ? parsed : {};
+      } catch {
+        return {};
+      }
+    }
+
+    function saveClearWatermarks() {
+      localStorage.setItem(CLEAR_WATERMARKS_KEY, JSON.stringify(state.clearWatermarks));
+    }
+
+    function setClearWatermark(meter, timestampMs = Date.now()) {
+      meter.clearWatermarkMs = timestampMs;
+      state.clearWatermarks[meter.serial] = timestampMs;
+      saveClearWatermarks();
     }
 
     function uniqueSerials(serials) {
@@ -1721,7 +1749,7 @@
       els.recomputeBtn.addEventListener("click", recompute);
       els.liveBtn.addEventListener("click", startLive);
       els.stopLiveBtn.addEventListener("click", () => stopLive());
-      els.clearDataBtn.addEventListener("click", clearUiData);
+      els.clearDataBtn.addEventListener("click", () => clearUiData());
       els.addSerialBtn.addEventListener("click", addSerialFromInput);
       els.serialInput.addEventListener("keydown", (event) => {
         if (event.key === "Enter") addSerialFromInput();
@@ -2057,15 +2085,35 @@
       }
     }
 
-    function clearUiData() {
-      state.samples = [];
-      state.computed = [];
-      state.events = [];
-      state.selectedIndex = null;
-      state.liveGeometryApplied = false;
-      state.liveLastFrameAtMs = null;
-      state.liveErrorAtMs = null;
-      state.lastQualityRenderKey = "";
+    async function clearUiData() {
+      const meter = state.activeMeter;
+      els.clearDataBtn.disabled = true;
+      els.clearDataBtn.textContent = t("deleting");
+      try {
+        const result = await deleteServerDataForMeter(meter);
+        setClearWatermark(meter);
+        clearLocalDataForMeter(meter);
+        showToast(t("backendDeleteOk", { serial: meter.serial, count: result.removed ?? 0 }));
+      } catch (error) {
+        showToast(t("backendDeleteFailed", { message: error.message }));
+      } finally {
+        els.clearDataBtn.disabled = false;
+        els.clearDataBtn.textContent = t("clearData");
+      }
+    }
+
+    function clearLocalDataForMeter(meter) {
+      clearLabelsForMeter(meter);
+      meter.samples = [];
+      meter.computed = [];
+      meter.events = [];
+      meter.selectedIndex = null;
+      meter.liveGeometryApplied = false;
+      meter.liveLastFrameAtMs = null;
+      meter.liveErrorAtMs = null;
+      meter.lastQualityRenderKey = "";
+      meter.waveformCsvText = "";
+      meter.waveformCsvLoadedAtMs = 0;
       els.auditRows.innerHTML = "";
       els.eventList.innerHTML = `<div class="empty">${t("noData")}</div>`;
       els.noticeText.value = "";
@@ -2087,13 +2135,26 @@
       els.trainFreeze.textContent = "--";
       els.dataQuality.textContent = state.liveSource ? t("waitingFreshFrames") : t("cleared");
       els.lastSampleAge.textContent = "--";
-      state.waveform = { status: "idle", key: "" };
+      meter.waveform = { status: "idle", key: "" };
       els.waveformMeta.textContent = t("clearedWaveform");
       els.waveformStats.innerHTML = "";
       renderRunStatus();
       renderMeterTabs();
       resizeAllCharts();
-      showToast(state.liveSource ? t("toastClearedLive") : t("toastCleared"));
+      showToast(meter.liveSource ? t("toastClearedLive") : t("toastCleared"));
+    }
+
+    function clearLabelsForMeter(meter) {
+      const knownIds = new Set([
+        ...meter.samples.map((row) => row.id).filter(Boolean),
+        ...meter.computed.map((row) => row.id).filter(Boolean),
+      ]);
+      Object.keys(state.labels).forEach((id) => {
+        if (knownIds.has(id) || id.includes(`-${meter.serial}-`)) {
+          delete state.labels[id];
+        }
+      });
+      saveLabels();
     }
 
     function liveEndpoint(serial) {
@@ -2105,6 +2166,33 @@
       return `/stream?${params}`;
     }
 
+    function clearDataEndpoint(serial) {
+      const params = new URLSearchParams({ serial });
+      if (appToken) params.set("token", appToken);
+      if (window.location.protocol === "file:") {
+        return `http://127.0.0.1:8765/clear-data?${params}`;
+      }
+      return `/clear-data?${params}`;
+    }
+
+    async function deleteServerDataForMeter(meter) {
+      const response = await fetch(clearDataEndpoint(meter.serial), {
+        method: "POST",
+        cache: "no-store",
+      });
+      const text = await response.text();
+      let payload = {};
+      try {
+        payload = text ? JSON.parse(text) : {};
+      } catch {
+        payload = {};
+      }
+      if (!response.ok || payload.ok === false) {
+        throw new Error(payload.error || `HTTP ${response.status}`);
+      }
+      return payload;
+    }
+
     function appendLiveRecord(record, meter = state.activeMeter) {
       if (!meter.liveGeometryApplied && record.pipe_outer_diameter_mm && record.pipe_wall_thickness_mm && isActiveMeter(meter)) {
         els.pipeOuterDiameter.value = String(record.pipe_outer_diameter_mm);
@@ -2113,6 +2201,9 @@
         syncOutputs();
       }
       const sample = sampleFromLiveRecord(record, meter);
+      if (record._stream_replay && meter.clearWatermarkMs && sample.timestamp.getTime() <= meter.clearWatermarkMs) {
+        return;
+      }
       const previous = meter.samples[meter.samples.length - 1];
       sample.receivedAtMs = Date.now();
       sample.sourceGapMs = previous ? sample.timestamp - previous.timestamp : 0;
