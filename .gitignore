@@ -14,10 +14,12 @@ __pycache__/
 # Local environment / secrets
 .env
 .env.*
+.railway/
 
 # Runtime telemetry and generated logs
 *.log
 *.jsonl
+data/
 
 # Device-specific or large local data captures
 BB*.csv

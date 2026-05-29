@@ -1162,7 +1162,7 @@
     const LIVE_STALE_AFTER_MS = 6500;
     const LIVE_DISCONNECTED_AFTER_MS = 15000;
     const SAMPLE_GAP_AFTER_MS = 6500;
-    const WAVEFORM_CSV_PATH = "live_BB8100017587_realtime.csv";
+    const WAVEFORM_CSV_PATH = "waveform.csv";
     const WAVEFORM_BASELINE_SAMPLES = 160;
     const WAVEFORM_GATE_START = 228;
     const WAVEFORM_GATE_END = 548;
@@ -2331,7 +2331,8 @@
       try {
         const now = Date.now();
         if (force || !state.waveformCsvText || now - state.waveformCsvLoadedAtMs > 2500) {
-          const response = await fetch(`${WAVEFORM_CSV_PATH}?t=${now}`, { cache: "no-store" });
+          const params = new URLSearchParams({ serial: config.serial, t: String(now) });
+          const response = await fetch(`${WAVEFORM_CSV_PATH}?${params.toString()}`, { cache: "no-store" });
           if (!response.ok) throw new Error(`waveform CSV ${response.status}`);
           state.waveformCsvText = await response.text();
           state.waveformCsvLoadedAtMs = now;

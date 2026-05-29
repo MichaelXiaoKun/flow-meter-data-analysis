@@ -61,8 +61,16 @@ class LiveHandler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/":
+            self.send_response(HTTPStatus.FOUND)
+            self.send_header("Location", "/temperature_zero_flow_prototype.html")
+            self.end_headers()
+            return
         if parsed.path == "/stream":
             self.stream(parsed.query)
+            return
+        if parsed.path == "/waveform.csv":
+            self.serve_waveform_csv()
             return
         if parsed.path == "/status":
             self.status()
@@ -75,11 +83,32 @@ class LiveHandler(SimpleHTTPRequestHandler):
                 "ok": True,
                 "log_path": str(self.server.log_path),  # type: ignore[attr-defined]
                 "exists": self.server.log_path.exists(),  # type: ignore[attr-defined]
+                "waveform_csv_path": str(self.server.waveform_csv_path),  # type: ignore[attr-defined]
+                "waveform_csv_exists": self.server.waveform_csv_path.exists(),  # type: ignore[attr-defined]
             },
             indent=2,
         ).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def serve_waveform_csv(self) -> None:
+        path: Path = self.server.waveform_csv_path  # type: ignore[attr-defined]
+        if not path.exists():
+            body = b""
+            self.send_response(HTTPStatus.NOT_FOUND)
+            self.send_header("Content-Type", "text/csv; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        body = path.read_bytes()
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "text/csv; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -139,6 +168,12 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--host", default="127.0.0.1")
     parser.add_argument("--port", type=int, default=8765)
     parser.add_argument("--log", type=Path, default=REPO / "mqtt_analysis_log.jsonl")
+    parser.add_argument(
+        "--waveform-csv",
+        type=Path,
+        default=ROOT / "live_BB8100017587_realtime.csv",
+        help="CSV file exposed at /waveform.csv for waveform hover/inspection.",
+    )
     return parser
 
 
@@ -146,8 +181,10 @@ def main() -> None:
     args = build_parser().parse_args()
     server = ThreadingHTTPServer((args.host, args.port), LiveHandler)
     server.log_path = args.log.resolve()  # type: ignore[attr-defined]
+    server.waveform_csv_path = args.waveform_csv.resolve()  # type: ignore[attr-defined]
     print(f"Serving prototype: http://{args.host}:{args.port}/temperature_zero_flow_prototype.html")
     print(f"Streaming JSONL:   {server.log_path}")
+    print(f"Waveform CSV:      {server.waveform_csv_path}")
     server.serve_forever()
 
 
