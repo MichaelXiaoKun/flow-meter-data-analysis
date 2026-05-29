@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import sys
 import time
 from collections import deque
 from http import HTTPStatus
@@ -138,6 +139,11 @@ class LiveHandler(SimpleHTTPRequestHandler):
 
     def __init__(self, *args, directory: str | None = None, **kwargs) -> None:
         super().__init__(*args, directory=directory or str(ROOT), **kwargs)
+
+    def log_message(self, format: str, *args: object) -> None:
+        # http.server writes access logs to stderr by default, which Railway marks as errors.
+        sys.stdout.write(f"{self.address_string()} - - [{self.log_date_time_string()}] {format % args}\n")
+        sys.stdout.flush()
 
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")

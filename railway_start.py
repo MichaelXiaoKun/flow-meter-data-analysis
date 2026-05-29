@@ -21,19 +21,31 @@ ROOT = Path(__file__).resolve().parent
 
 
 def env_bool(name: str, default: bool) -> bool:
-    raw = os.environ.get(name)
+    raw = env_str(name, "")
     if raw is None:
+        return default
+    if not raw:
         return default
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
-def env_path(name: str, default: Path) -> Path:
+def env_str(name: str, default: str = "") -> str:
     raw = os.environ.get(name)
+    if raw is None:
+        return default
+    value = raw.strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
+        value = value[1:-1]
+    return value
+
+
+def env_path(name: str, default: Path) -> Path:
+    raw = env_str(name)
     return Path(raw).expanduser() if raw else default
 
 
 def data_dir() -> Path:
-    raw = os.environ.get("RAILWAY_VOLUME_MOUNT_PATH") or os.environ.get("DATA_DIR")
+    raw = env_str("RAILWAY_VOLUME_MOUNT_PATH") or env_str("DATA_DIR")
     path = Path(raw) if raw else Path("/tmp/flow-meter-data")
     path.mkdir(parents=True, exist_ok=True)
     return path
@@ -56,17 +68,17 @@ def analyzer_command(data: Path) -> list[str]:
         sys.executable,
         str(ROOT / "mqtt_stream_analyzer.py"),
         "--broker",
-        os.environ.get("MQTT_BROKER", "mqtt-prod.bluebot.com"),
+        env_str("MQTT_BROKER", "mqtt-prod.bluebot.com"),
         "--port",
-        os.environ.get("MQTT_PORT", "1883"),
+        env_str("MQTT_PORT", "1883"),
         "--client-id",
-        os.environ.get("MQTT_CLIENT_ID", "lens_data_{uuid}"),
+        env_str("MQTT_CLIENT_ID", "lens_data_{uuid}"),
         "--sig-topic",
-        os.environ.get("MQTT_SIG_TOPIC", "meter/sig/{serial}"),
+        env_str("MQTT_SIG_TOPIC", "meter/sig/{serial}"),
         "--pub-topic",
-        os.environ.get("MQTT_PUB_TOPIC", "meter/pub/{serial}"),
+        env_str("MQTT_PUB_TOPIC", "meter/pub/{serial}"),
         "--processed-topic",
-        os.environ.get("MQTT_PROCESSED_TOPIC", ""),
+        env_str("MQTT_PROCESSED_TOPIC", ""),
         "--serials-json",
         str(serials_path),
         "--model",
@@ -74,7 +86,7 @@ def analyzer_command(data: Path) -> list[str]:
         "--adapted-model-out",
         str(adapted_model),
         "--heartbeat-s",
-        os.environ.get("ANALYZER_HEARTBEAT_S", "30"),
+        env_str("ANALYZER_HEARTBEAT_S", "30"),
         "--save-csv",
         str(csv_path),
         "--log-jsonl",
@@ -84,19 +96,21 @@ def analyzer_command(data: Path) -> list[str]:
         "--notifications-jsonl",
         str(notifications_path),
         "--log-mode",
-        os.environ.get("ANALYZER_LOG_MODE", "transitions"),
+        env_str("ANALYZER_LOG_MODE", "transitions"),
         "--save-every",
-        os.environ.get("ANALYZER_SAVE_EVERY", "25"),
+        env_str("ANALYZER_SAVE_EVERY", "25"),
     ]
 
     if env_bool("SELF_TRAIN", True):
         cmd.append("--self-train")
     if env_bool("MQTT_TLS", False):
         cmd.append("--tls")
-    if os.environ.get("MQTT_USERNAME"):
-        cmd.extend(["--username", os.environ["MQTT_USERNAME"]])
-    if os.environ.get("MQTT_PASSWORD"):
-        cmd.extend(["--password", os.environ["MQTT_PASSWORD"]])
+    mqtt_username = env_str("MQTT_USERNAME")
+    mqtt_password = env_str("MQTT_PASSWORD")
+    if mqtt_username:
+        cmd.extend(["--username", mqtt_username])
+    if mqtt_password:
+        cmd.extend(["--password", mqtt_password])
 
     cnn_model = env_path("CNN_MODEL_PATH", ROOT / "cnn_autoencoder_model.pt")
     if env_bool("ENABLE_CNN", False) and cnn_model.exists():
@@ -105,9 +119,9 @@ def analyzer_command(data: Path) -> list[str]:
                 "--cnn-model",
                 str(cnn_model),
                 "--cnn-device",
-                os.environ.get("CNN_DEVICE", "cpu"),
+                env_str("CNN_DEVICE", "cpu"),
                 "--cnn-health-weight",
-                os.environ.get("CNN_HEALTH_WEIGHT", "0"),
+                env_str("CNN_HEALTH_WEIGHT", "0"),
             ]
         )
 
@@ -123,7 +137,7 @@ def analyzer_command(data: Path) -> list[str]:
 
 
 def server_command(data: Path) -> list[str]:
-    port = os.environ.get("PORT", "8765")
+    port = env_str("PORT", "8765")
     log_path = env_path("ANALYSIS_LOG_PATH", data / "live_mqtt_analysis.jsonl")
     events_path = env_path("EVENTS_LOG_PATH", data / "live_mqtt_events.jsonl")
     csv_path = env_path("WAVEFORM_CSV_PATH", data / "live_mqtt_waveforms.csv")
@@ -132,7 +146,7 @@ def server_command(data: Path) -> list[str]:
         sys.executable,
         str(ROOT / "prototype" / "live_server.py"),
         "--host",
-        os.environ.get("HOST", "0.0.0.0"),
+        env_str("HOST", "0.0.0.0"),
         "--port",
         port,
         "--log",
@@ -144,7 +158,7 @@ def server_command(data: Path) -> list[str]:
         "--serials-json",
         str(serials_path),
         "--app-token",
-        os.environ.get("APP_TOKEN", ""),
+        env_str("APP_TOKEN", ""),
     ]
 
 
