@@ -1163,9 +1163,14 @@
     const LIVE_DISCONNECTED_AFTER_MS = 15000;
     const SAMPLE_GAP_AFTER_MS = 6500;
     const WAVEFORM_CSV_PATH = "waveform.csv";
+    const APP_TOKEN_KEY = "zeroFlowPrototypeAppToken";
     const WAVEFORM_BASELINE_SAMPLES = 160;
     const WAVEFORM_GATE_START = 228;
     const WAVEFORM_GATE_END = 548;
+    const urlParams = new URLSearchParams(window.location.search);
+    const appTokenFromUrl = urlParams.get("token") || "";
+    if (appTokenFromUrl) localStorage.setItem(APP_TOKEN_KEY, appTokenFromUrl);
+    const appToken = appTokenFromUrl || localStorage.getItem(APP_TOKEN_KEY) || "";
 
     const I18N = {
       zh: {
@@ -1688,6 +1693,7 @@
 
     function liveEndpoint(serial) {
       const params = new URLSearchParams({ serial, backlog: "300" });
+      if (appToken) params.set("token", appToken);
       if (window.location.protocol === "file:") {
         return `http://127.0.0.1:8765/stream?${params}`;
       }
@@ -2332,6 +2338,7 @@
         const now = Date.now();
         if (force || !state.waveformCsvText || now - state.waveformCsvLoadedAtMs > 2500) {
           const params = new URLSearchParams({ serial: config.serial, t: String(now) });
+          if (appToken) params.set("token", appToken);
           const response = await fetch(`${WAVEFORM_CSV_PATH}?${params.toString()}`, { cache: "no-store" });
           if (!response.ok) throw new Error(`waveform CSV ${response.status}`);
           state.waveformCsvText = await response.text();

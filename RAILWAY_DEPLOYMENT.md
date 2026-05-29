@@ -37,6 +37,21 @@ SELF_TRAIN=1
 ENABLE_CNN=0
 ```
 
+For a public Railway domain, set a read token:
+
+```bash
+APP_TOKEN=<long-random-token>
+```
+
+Then open the app with:
+
+```text
+https://<your-service>.up.railway.app/temperature_zero_flow_prototype.html?token=<long-random-token>
+```
+
+The token is required for live SSE data and waveform CSV. The `/health`
+endpoint remains open for Railway health checks.
+
 If the broker requires auth or TLS, also set:
 
 ```bash
@@ -66,6 +81,7 @@ lost on restart.
 - `/temperature_zero_flow_prototype.html` - main UI.
 - `/stream?serial=BB8100017587&backlog=300` - Server-Sent Events.
 - `/waveform.csv?serial=BB8100017587` - waveform CSV used by the UI.
+- `/health` - Railway health check.
 - `/status` - health and file-path status.
 
 ## Local smoke test

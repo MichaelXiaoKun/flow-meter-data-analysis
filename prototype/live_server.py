@@ -66,16 +66,54 @@ class LiveHandler(SimpleHTTPRequestHandler):
             self.send_header("Location", "/temperature_zero_flow_prototype.html")
             self.end_headers()
             return
+        if parsed.path == "/health":
+            self.health()
+            return
         if parsed.path == "/stream":
+            if not self.is_authorized(parsed.query):
+                self.unauthorized()
+                return
             self.stream(parsed.query)
             return
         if parsed.path == "/waveform.csv":
+            if not self.is_authorized(parsed.query):
+                self.unauthorized()
+                return
             self.serve_waveform_csv()
             return
         if parsed.path == "/status":
             self.status()
             return
         super().do_GET()
+
+    def health(self) -> None:
+        body = b'{"ok":true}\n'
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def is_authorized(self, query: str) -> bool:
+        expected = getattr(self.server, "app_token", "")  # type: ignore[attr-defined]
+        if not expected:
+            return True
+        params = parse_qs(query)
+        supplied = params.get("token", [""])[0]
+        if supplied == expected:
+            return True
+        auth = self.headers.get("Authorization", "")
+        if auth == f"Bearer {expected}":
+            return True
+        return self.headers.get("X-App-Token", "") == expected
+
+    def unauthorized(self) -> None:
+        body = b'{"ok":false,"error":"unauthorized"}\n'
+        self.send_response(HTTPStatus.UNAUTHORIZED)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def status(self) -> None:
         body = json.dumps(
@@ -174,6 +212,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=ROOT / "live_BB8100017587_realtime.csv",
         help="CSV file exposed at /waveform.csv for waveform hover/inspection.",
     )
+    parser.add_argument(
+        "--app-token",
+        default="",
+        help="Optional token required for /stream and /waveform.csv. Use ?token=... in the UI URL.",
+    )
     return parser
 
 
@@ -182,9 +225,11 @@ def main() -> None:
     server = ThreadingHTTPServer((args.host, args.port), LiveHandler)
     server.log_path = args.log.resolve()  # type: ignore[attr-defined]
     server.waveform_csv_path = args.waveform_csv.resolve()  # type: ignore[attr-defined]
+    server.app_token = args.app_token  # type: ignore[attr-defined]
     print(f"Serving prototype: http://{args.host}:{args.port}/temperature_zero_flow_prototype.html")
     print(f"Streaming JSONL:   {server.log_path}")
     print(f"Waveform CSV:      {server.waveform_csv_path}")
+    print(f"Data auth:         {'enabled' if args.app_token else 'disabled'}")
     server.serve_forever()
 
 

@@ -134,6 +134,8 @@ def server_command(data: Path, serial: str) -> list[str]:
         str(log_path),
         "--waveform-csv",
         str(csv_path),
+        "--app-token",
+        os.environ.get("APP_TOKEN", ""),
     ]
 
 
