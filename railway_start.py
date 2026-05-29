@@ -42,13 +42,14 @@ def data_dir() -> Path:
 def analyzer_command(data: Path) -> list[str]:
     log_path = env_path("ANALYSIS_LOG_PATH", data / "live_mqtt_analysis.jsonl")
     events_path = env_path("EVENTS_LOG_PATH", data / "live_mqtt_events.jsonl")
+    notifications_path = env_path("NOTIFICATIONS_JSONL", data / "live_notifications.jsonl")
     csv_path = env_path("WAVEFORM_CSV_PATH", data / "live_mqtt_waveforms.csv")
     serials_path = env_path("METER_SERIALS_PATH", data / "live_meter_serials.json")
     adapted_model = env_path("ADAPTED_MODEL_PATH", data / "live_adaptive_meter_model.json")
     model_default = adapted_model if adapted_model.exists() else ROOT / "oneclass_meter_model_combined.json"
     model_path = env_path("METER_MODEL_PATH", model_default)
 
-    for path in (log_path, events_path, csv_path, serials_path, adapted_model):
+    for path in (log_path, events_path, notifications_path, csv_path, serials_path, adapted_model):
         path.parent.mkdir(parents=True, exist_ok=True)
 
     cmd = [
@@ -80,6 +81,8 @@ def analyzer_command(data: Path) -> list[str]:
         str(log_path),
         "--events-jsonl",
         str(events_path),
+        "--notifications-jsonl",
+        str(notifications_path),
         "--log-mode",
         os.environ.get("ANALYZER_LOG_MODE", "transitions"),
         "--save-every",
@@ -111,6 +114,7 @@ def analyzer_command(data: Path) -> list[str]:
     print("Analyzer output:")
     print(f"  log={log_path}")
     print(f"  events={events_path}")
+    print(f"  notifications={notifications_path}")
     print(f"  waveform_csv={csv_path}")
     print(f"  serials={serials_path}")
     print(f"  model={model_path}")
