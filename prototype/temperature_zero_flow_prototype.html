@@ -148,7 +148,7 @@
 
     main {
       display: grid;
-      grid-template-columns: minmax(0, 1fr) 360px;
+      grid-template-columns: 230px minmax(0, 1fr) 360px;
       gap: 16px;
       padding: 16px;
     }
@@ -242,6 +242,119 @@
       display: grid;
       grid-template-columns: repeat(4, minmax(180px, 1fr));
       gap: 14px;
+    }
+
+    .meter-rail {
+      align-self: start;
+      position: sticky;
+      top: 82px;
+      max-height: calc(100vh - 100px);
+      overflow: auto;
+    }
+
+    .meter-body {
+      display: grid;
+      gap: 12px;
+    }
+
+    .serial-add-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 8px;
+    }
+
+    .serial-add-row .serial-input {
+      width: 100%;
+    }
+
+    .serial-tabs {
+      display: grid;
+      gap: 8px;
+    }
+
+    .meter-tab-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 32px;
+      gap: 6px;
+      align-items: stretch;
+    }
+
+    .meter-tab {
+      min-width: 0;
+      min-height: 58px;
+      padding: 8px 10px;
+      border-radius: 8px;
+      text-align: left;
+      display: grid;
+      gap: 5px;
+      align-content: center;
+    }
+
+    .meter-tab-row.active .meter-tab {
+      border-color: #0f766e;
+      background: #ecfeff;
+      color: #0f172a;
+      box-shadow: inset 3px 0 0 #0f766e;
+    }
+
+    .meter-tab-main {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+      align-items: center;
+      min-width: 0;
+    }
+
+    .meter-serial {
+      font-size: 13px;
+      font-weight: 750;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .meter-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #94a3b8;
+      flex: 0 0 auto;
+    }
+
+    .meter-dot.live,
+    .meter-dot.offline {
+      background: var(--green);
+    }
+
+    .meter-dot.connecting,
+    .meter-dot.stale {
+      background: var(--amber);
+    }
+
+    .meter-dot.disconnected {
+      background: var(--red);
+    }
+
+    .meter-tab-sub {
+      color: var(--muted);
+      font-size: 11px;
+      line-height: 1.25;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .meter-remove {
+      width: 32px;
+      min-height: 58px;
+      padding: 0;
+      color: var(--muted);
+    }
+
+    .meter-hint {
+      color: var(--muted);
+      font-size: 12px;
+      line-height: 1.45;
     }
 
     .control-row {
@@ -733,6 +846,15 @@
         grid-template-columns: 1fr;
       }
 
+      .meter-rail {
+        position: static;
+        max-height: none;
+      }
+
+      .serial-tabs {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
       .right-rail {
         grid-column: 1 / -1;
       }
@@ -754,6 +876,10 @@
 
       .header-actions {
         justify-content: start;
+      }
+
+      .serial-tabs {
+        grid-template-columns: 1fr;
       }
 
       main {
@@ -795,14 +921,12 @@
         <div class="subtitle">本地测试 phantom flow、温度漂移、用户确认标签和客户通知文案</div>
       </div>
       <div class="header-actions">
-        <input id="serialInput" class="serial-input" value="BB8100017587" aria-label="serial">
         <button id="liveBtn">连接实时</button>
         <button id="stopLiveBtn">断开</button>
         <button id="clearDataBtn">清理数据</button>
         <span id="runStatus" class="status-pill green">Ready</span>
         <button id="langToggle" title="Switch language">EN</button>
         <button id="resetLabelsBtn" title="清空本地用户确认标签" class="icon">R</button>
-        <button id="demoBtn" class="primary">生成模拟数据</button>
         <label class="file-button">
           <button>导入 CSV</button>
           <input id="csvInput" type="file" accept=".csv,text/csv">
@@ -814,15 +938,6 @@
     <details class="panel advanced-panel">
       <summary>高级参数</summary>
       <div class="panel-body advanced-grid">
-          <div class="control-group">
-            <div class="label-line"><strong>测试场景</strong><span id="scenarioName">混合</span></div>
-            <div class="segmented" id="scenarioTabs">
-              <button data-scenario="heating">升温</button>
-              <button data-scenario="cooling">降温</button>
-              <button data-scenario="mixed" class="active">混合</button>
-            </div>
-          </div>
-
           <div class="control-group">
             <div class="control-row">
               <div class="label-line"><strong>FR deadband</strong><span><output id="deadbandOut">0.030</output> m3/h</span></div>
@@ -884,6 +999,21 @@
     </details>
 
     <main>
+      <aside class="meter-rail panel">
+        <div class="panel-header">
+          <h2 id="meterPanelTitle" class="panel-title">Meters</h2>
+          <span id="meterLimitLabel" class="status-pill">1/10</span>
+        </div>
+        <div class="panel-body meter-body">
+          <div class="serial-add-row">
+            <input id="serialInput" class="serial-input" value="" placeholder="Add serial" aria-label="serial">
+            <button id="addSerialBtn">Add</button>
+          </div>
+          <div id="serialTabs" class="serial-tabs"></div>
+          <div id="activeSerialHint" class="meter-hint">Selected BB8100017587</div>
+        </div>
+      </aside>
+
       <section class="stack">
         <div class="kpi-grid">
           <div class="kpi">
@@ -1032,9 +1162,9 @@
               <span>updates</span><strong id="trainUpdates">--</strong>
               <span>stable ratio</span><strong id="trainStable">--</strong>
               <span>freeze reason</span><strong id="trainFreeze">--</strong>
-              <span>data quality</span><strong id="dataQuality">local demo</strong>
+              <span>data quality</span><strong id="dataQuality">no data</strong>
               <span>last sample age</span><strong id="lastSampleAge">--</strong>
-              <span>live source</span><strong id="liveSource">local demo</strong>
+              <span>live source</span><strong id="liveSource">not connected</strong>
             </div>
           </div>
         </div>
@@ -1046,31 +1176,114 @@
   <div id="chartTooltip" class="chart-tooltip"></div>
 
   <script>
+    const DEFAULT_SERIAL = "BB8100017587";
+    const MAX_METERS = 10;
+    const SERIALS_KEY = "zeroFlowPrototypeSerials";
+    const ACTIVE_SERIAL_KEY = "zeroFlowPrototypeActiveSerial";
+
     const state = {
-      scenario: "mixed",
-      samples: [],
-      computed: [],
-      events: [],
-      selectedIndex: null,
+      activeSerial: DEFAULT_SERIAL,
+      meterOrder: [],
+      meters: {},
       labels: loadLabels(),
-      liveSource: null,
-      liveConnected: false,
-      liveGeometryApplied: false,
-      liveLastFrameAtMs: null,
-      liveErrorAtMs: null,
-      lastQualityRenderKey: "",
-      waveform: { status: "idle", key: "" },
-      waveformTimer: null,
-      waveformCsvText: "",
-      waveformCsvLoadedAtMs: 0,
       hover: null,
       lang: loadLanguage(),
+      get activeMeter() {
+        return ensureMeter(this.activeSerial);
+      },
+      get samples() {
+        return this.activeMeter.samples;
+      },
+      set samples(value) {
+        this.activeMeter.samples = value;
+      },
+      get computed() {
+        return this.activeMeter.computed;
+      },
+      set computed(value) {
+        this.activeMeter.computed = value;
+      },
+      get events() {
+        return this.activeMeter.events;
+      },
+      set events(value) {
+        this.activeMeter.events = value;
+      },
+      get selectedIndex() {
+        return this.activeMeter.selectedIndex;
+      },
+      set selectedIndex(value) {
+        this.activeMeter.selectedIndex = value;
+      },
+      get liveSource() {
+        return this.activeMeter.liveSource;
+      },
+      set liveSource(value) {
+        this.activeMeter.liveSource = value;
+      },
+      get liveConnected() {
+        return this.activeMeter.liveConnected;
+      },
+      set liveConnected(value) {
+        this.activeMeter.liveConnected = value;
+      },
+      get liveGeometryApplied() {
+        return this.activeMeter.liveGeometryApplied;
+      },
+      set liveGeometryApplied(value) {
+        this.activeMeter.liveGeometryApplied = value;
+      },
+      get liveLastFrameAtMs() {
+        return this.activeMeter.liveLastFrameAtMs;
+      },
+      set liveLastFrameAtMs(value) {
+        this.activeMeter.liveLastFrameAtMs = value;
+      },
+      get liveErrorAtMs() {
+        return this.activeMeter.liveErrorAtMs;
+      },
+      set liveErrorAtMs(value) {
+        this.activeMeter.liveErrorAtMs = value;
+      },
+      get lastQualityRenderKey() {
+        return this.activeMeter.lastQualityRenderKey;
+      },
+      set lastQualityRenderKey(value) {
+        this.activeMeter.lastQualityRenderKey = value;
+      },
+      get waveform() {
+        return this.activeMeter.waveform;
+      },
+      set waveform(value) {
+        this.activeMeter.waveform = value;
+      },
+      get waveformTimer() {
+        return this.activeMeter.waveformTimer;
+      },
+      set waveformTimer(value) {
+        this.activeMeter.waveformTimer = value;
+      },
+      get waveformCsvText() {
+        return this.activeMeter.waveformCsvText;
+      },
+      set waveformCsvText(value) {
+        this.activeMeter.waveformCsvText = value;
+      },
+      get waveformCsvLoadedAtMs() {
+        return this.activeMeter.waveformCsvLoadedAtMs;
+      },
+      set waveformCsvLoadedAtMs(value) {
+        this.activeMeter.waveformCsvLoadedAtMs = value;
+      },
     };
 
     const els = {
-      scenarioTabs: document.getElementById("scenarioTabs"),
-      scenarioName: document.getElementById("scenarioName"),
       serialInput: document.getElementById("serialInput"),
+      addSerialBtn: document.getElementById("addSerialBtn"),
+      serialTabs: document.getElementById("serialTabs"),
+      meterPanelTitle: document.getElementById("meterPanelTitle"),
+      meterLimitLabel: document.getElementById("meterLimitLabel"),
+      activeSerialHint: document.getElementById("activeSerialHint"),
       liveBtn: document.getElementById("liveBtn"),
       stopLiveBtn: document.getElementById("stopLiveBtn"),
       clearDataBtn: document.getElementById("clearDataBtn"),
@@ -1092,7 +1305,6 @@
       feedbackToggle: document.getElementById("feedbackToggle"),
       coolingToggle: document.getElementById("coolingToggle"),
       recomputeBtn: document.getElementById("recomputeBtn"),
-      demoBtn: document.getElementById("demoBtn"),
       exportBtn: document.getElementById("exportBtn"),
       resetLabelsBtn: document.getElementById("resetLabelsBtn"),
       csvInput: document.getElementById("csvInput"),
@@ -1179,15 +1391,21 @@
         connectLive: "连接实时",
         disconnect: "断开",
         clearData: "清理数据",
+        meters: "流量计",
+        addSerialPlaceholder: "添加 serial",
+        addMeter: "添加",
+        selectedMeter: "当前选择 {serial}",
+        meterLimit: "{count}/10",
+        meterLimitReached: "最多只能添加 10 台流量计",
+        invalidSerial: "请输入有效 serial number",
+        serialAdded: "已添加 {serial}",
+        serialExists: "{serial} 已在列表中",
+        removedSerial: "已移除 {serial}",
+        removeSerialTitle: "移除该 serial",
         resetLabelsTitle: "清空本地用户确认标签",
-        demoData: "生成模拟数据",
         importCsv: "导入 CSV",
         exportLabels: "导出标签",
         advanced: "高级参数",
-        scenario: "测试场景",
-        heating: "升温",
-        cooling: "降温",
-        mixed: "混合",
         liveScenario: "实时 {serial}",
         pipeOd: "PD 外径",
         pipeWall: "PT 壁厚",
@@ -1222,7 +1440,6 @@
         clearedWaveform: "已清理",
         waitingFreshFrames: "waiting for fresh frames",
         cleared: "cleared",
-        toastDemo: "已生成新的模拟数据",
         toastLabelsCleared: "本地确认标签已清空",
         toastMarkedSent: "已标记为已通知",
         toastClearedLive: "页面数据已清理，等待新的实时帧",
@@ -1289,15 +1506,21 @@
         connectLive: "Connect live",
         disconnect: "Disconnect",
         clearData: "Clear data",
+        meters: "Meters",
+        addSerialPlaceholder: "Add serial",
+        addMeter: "Add",
+        selectedMeter: "Selected {serial}",
+        meterLimit: "{count}/10",
+        meterLimitReached: "You can add up to 10 meters",
+        invalidSerial: "Enter a valid serial number",
+        serialAdded: "Added {serial}",
+        serialExists: "{serial} is already in the list",
+        removedSerial: "Removed {serial}",
+        removeSerialTitle: "Remove this serial",
         resetLabelsTitle: "Clear local user labels",
-        demoData: "Generate demo",
         importCsv: "Import CSV",
         exportLabels: "Export labels",
         advanced: "Advanced parameters",
-        scenario: "Scenario",
-        heating: "Heating",
-        cooling: "Cooling",
-        mixed: "Mixed",
         liveScenario: "Live {serial}",
         pipeOd: "PD outer diameter",
         pipeWall: "PT wall thickness",
@@ -1332,7 +1555,6 @@
         clearedWaveform: "Cleared",
         waitingFreshFrames: "waiting for fresh frames",
         cleared: "cleared",
-        toastDemo: "Generated new demo data",
         toastLabelsCleared: "Local confirmation labels cleared",
         toastMarkedSent: "Marked as notified",
         toastClearedLive: "Page data cleared; waiting for fresh live frames",
@@ -1395,13 +1617,85 @@
       },
     };
 
+    function createMeterRuntimeState(serial) {
+      return {
+        serial,
+        samples: [],
+        computed: [],
+        events: [],
+        selectedIndex: null,
+        liveSource: null,
+        liveConnected: false,
+        liveGeometryApplied: false,
+        liveLastFrameAtMs: null,
+        liveErrorAtMs: null,
+        lastQualityRenderKey: "",
+        waveform: { status: "idle", key: "" },
+        waveformTimer: null,
+        waveformCsvText: "",
+        waveformCsvLoadedAtMs: 0,
+      };
+    }
+
+    function normalizeSerial(raw) {
+      return String(raw || "").trim().toUpperCase().replace(/[^A-Z0-9_-]/g, "");
+    }
+
+    function loadSerialList() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(SERIALS_KEY) || "[]");
+        const serials = Array.isArray(parsed) ? parsed : [];
+        return uniqueSerials([DEFAULT_SERIAL, ...serials]).slice(0, MAX_METERS);
+      } catch {
+        return [DEFAULT_SERIAL];
+      }
+    }
+
+    function uniqueSerials(serials) {
+      const out = [];
+      serials.forEach((serial) => {
+        const normalized = normalizeSerial(serial);
+        if (normalized && !out.includes(normalized)) out.push(normalized);
+      });
+      return out;
+    }
+
+    function saveMeterList() {
+      localStorage.setItem(SERIALS_KEY, JSON.stringify(state.meterOrder));
+      localStorage.setItem(ACTIVE_SERIAL_KEY, state.activeSerial);
+    }
+
+    function ensureMeter(serial) {
+      const normalized = normalizeSerial(serial) || DEFAULT_SERIAL;
+      if (!state.meters[normalized]) {
+        state.meters[normalized] = createMeterRuntimeState(normalized);
+      }
+      if (!state.meterOrder.includes(normalized)) {
+        state.meterOrder.push(normalized);
+      }
+      return state.meters[normalized];
+    }
+
+    function setupMeters() {
+      const serials = loadSerialList();
+      serials.forEach((serial) => ensureMeter(serial));
+      const storedActive = normalizeSerial(localStorage.getItem(ACTIVE_SERIAL_KEY));
+      state.activeSerial = state.meterOrder.includes(storedActive) ? storedActive : state.meterOrder[0] || DEFAULT_SERIAL;
+      ensureMeter(state.activeSerial);
+      saveMeterList();
+    }
+
+    function isActiveMeter(meter) {
+      return meter?.serial === state.activeSerial;
+    }
+
     init();
 
     function init() {
+      setupMeters();
       bindEvents();
       bindChartHover();
       applyLanguage();
-      state.samples = generateDemoData(state.scenario);
       recompute();
       window.addEventListener("resize", resizeAllCharts);
       window.setInterval(refreshLiveQuality, 1000);
@@ -1409,18 +1703,6 @@
     }
 
     function bindEvents() {
-      els.scenarioTabs.addEventListener("click", (event) => {
-        const button = event.target.closest("button[data-scenario]");
-        if (!button) return;
-        state.scenario = button.dataset.scenario;
-        [...els.scenarioTabs.querySelectorAll("button")].forEach((item) => {
-          item.classList.toggle("active", item === button);
-        });
-        updateScenarioName();
-        state.samples = generateDemoData(state.scenario);
-        recompute();
-      });
-
       [els.deadband, els.pipeOuterDiameter, els.pipeWallThickness, els.tempCoeff, els.trackerAlpha, els.alertThreshold].forEach((input) => {
         input.addEventListener("input", () => {
           syncOutputs();
@@ -1434,19 +1716,23 @@
 
       els.recomputeBtn.addEventListener("click", recompute);
       els.liveBtn.addEventListener("click", startLive);
-      els.stopLiveBtn.addEventListener("click", stopLive);
+      els.stopLiveBtn.addEventListener("click", () => stopLive());
       els.clearDataBtn.addEventListener("click", clearUiData);
-      els.langToggle.addEventListener("click", toggleLanguage);
-      els.demoBtn.addEventListener("click", () => {
-        stopLive();
-        state.samples = generateDemoData(state.scenario);
-        state.liveGeometryApplied = false;
-        state.liveLastFrameAtMs = null;
-        state.liveErrorAtMs = null;
-        state.lastQualityRenderKey = "";
-        recompute();
-        showToast(t("toastDemo"));
+      els.addSerialBtn.addEventListener("click", addSerialFromInput);
+      els.serialInput.addEventListener("keydown", (event) => {
+        if (event.key === "Enter") addSerialFromInput();
       });
+      els.serialTabs.addEventListener("click", (event) => {
+        const row = event.target.closest(".meter-tab-row[data-serial]");
+        if (!row) return;
+        const serial = row.dataset.serial;
+        if (event.target.closest("[data-action='remove']")) {
+          removeMeter(serial);
+          return;
+        }
+        selectMeter(serial);
+      });
+      els.langToggle.addEventListener("click", toggleLanguage);
       els.exportBtn.addEventListener("click", exportLabels);
       els.resetLabelsBtn.addEventListener("click", () => {
         state.labels = {};
@@ -1477,6 +1763,90 @@
       });
     }
 
+    function addSerialFromInput() {
+      const serial = normalizeSerial(els.serialInput.value);
+      if (serial.length < 3) {
+        showToast(t("invalidSerial"));
+        return;
+      }
+      if (state.meterOrder.includes(serial)) {
+        selectMeter(serial);
+        els.serialInput.value = "";
+        showToast(t("serialExists", { serial }));
+        return;
+      }
+      if (state.meterOrder.length >= MAX_METERS) {
+        showToast(t("meterLimitReached"));
+        return;
+      }
+      ensureMeter(serial);
+      selectMeter(serial);
+      els.serialInput.value = "";
+      saveMeterList();
+      showToast(t("serialAdded", { serial }));
+    }
+
+    function selectMeter(serial) {
+      const normalized = normalizeSerial(serial);
+      if (!normalized) return;
+      ensureMeter(normalized);
+      state.activeSerial = normalized;
+      state.hover = null;
+      hideChartTooltip();
+      saveMeterList();
+      render();
+      renderMeterTabs();
+    }
+
+    function removeMeter(serial) {
+      const normalized = normalizeSerial(serial);
+      if (!normalized || state.meterOrder.length <= 1) return;
+      const meter = state.meters[normalized];
+      if (meter?.liveSource) meter.liveSource.close();
+      state.meterOrder = state.meterOrder.filter((item) => item !== normalized);
+      delete state.meters[normalized];
+      if (state.activeSerial === normalized) {
+        state.activeSerial = state.meterOrder[0] || DEFAULT_SERIAL;
+      }
+      ensureMeter(state.activeSerial);
+      saveMeterList();
+      render();
+      renderMeterTabs();
+      showToast(t("removedSerial", { serial: normalized }));
+    }
+
+    function renderMeterTabs() {
+      if (!els.serialTabs) return;
+      els.meterLimitLabel.textContent = t("meterLimit", { count: state.meterOrder.length });
+      els.activeSerialHint.textContent = t("selectedMeter", { serial: state.activeSerial });
+      els.serialTabs.innerHTML = "";
+      const fragment = document.createDocumentFragment();
+      state.meterOrder.forEach((serial) => {
+        const meter = ensureMeter(serial);
+        const quality = currentDataQuality(meter);
+        const latest = meter.computed[meter.computed.length - 1];
+        const currentUnknown = latest ? shouldHideCurrentFlow(latest, quality, meter) : false;
+        const flowText = latest
+          ? currentUnknown ? "-- GPM" : `${latest.displayedGpm.toFixed(3)} GPM`
+          : "-- GPM";
+        const row = document.createElement("div");
+        row.className = `meter-tab-row${serial === state.activeSerial ? " active" : ""}`;
+        row.dataset.serial = serial;
+        row.innerHTML = `
+          <button class="meter-tab" data-action="select">
+            <span class="meter-tab-main">
+              <span class="meter-serial">${serial}</span>
+              <span class="meter-dot ${quality.status}"></span>
+            </span>
+            <span class="meter-tab-sub">${quality.trainingStatus} · ${meter.computed.length} samples · ${flowText}</span>
+          </button>
+          <button class="meter-remove" data-action="remove" title="${t("removeSerialTitle")}" ${state.meterOrder.length <= 1 ? "disabled" : ""}>×</button>
+        `;
+        fragment.appendChild(row);
+      });
+      els.serialTabs.appendChild(fragment);
+    }
+
     function t(key, values = {}) {
       const dict = I18N[state.lang] || I18N.zh;
       const template = dict[key] ?? I18N.zh[key] ?? key;
@@ -1499,22 +1869,20 @@
       els.liveBtn.textContent = t("connectLive");
       els.stopLiveBtn.textContent = t("disconnect");
       els.clearDataBtn.textContent = t("clearData");
+      els.meterPanelTitle.textContent = t("meters");
+      els.serialInput.placeholder = t("addSerialPlaceholder");
+      els.addSerialBtn.textContent = t("addMeter");
       els.langToggle.textContent = t("langButton");
       els.resetLabelsBtn.title = t("resetLabelsTitle");
-      els.demoBtn.textContent = t("demoData");
       document.querySelector(".file-button button").textContent = t("importCsv");
       els.exportBtn.textContent = t("exportLabels");
       setText(".advanced-panel summary", t("advanced"));
-      setTextAt(".label-line strong", 0, t("scenario"));
-      setText("[data-scenario='heating']", t("heating"));
-      setText("[data-scenario='cooling']", t("cooling"));
-      setText("[data-scenario='mixed']", t("mixed"));
-      setTextAt(".label-line strong", 2, t("pipeOd"));
-      setTextAt(".label-line strong", 3, t("pipeWall"));
-      setTextAt(".label-line strong", 4, t("innerDiameter"));
-      setTextAt(".label-line strong", 5, t("tempSensitivity"));
-      setTextAt(".label-line strong", 6, t("trackingSpeed"));
-      setTextAt(".label-line strong", 7, t("alertThreshold"));
+      setTextAt(".label-line strong", 1, t("pipeOd"));
+      setTextAt(".label-line strong", 2, t("pipeWall"));
+      setTextAt(".label-line strong", 3, t("innerDiameter"));
+      setTextAt(".label-line strong", 4, t("tempSensitivity"));
+      setTextAt(".label-line strong", 5, t("trackingSpeed"));
+      setTextAt(".label-line strong", 6, t("alertThreshold"));
       setTextAt(".toggle-row > span:first-child", 0, t("suppressPhantom"));
       setTextAt(".toggle-row > span:first-child", 1, t("feedbackLearning"));
       setTextAt(".toggle-row > span:first-child", 2, t("splitCooling"));
@@ -1534,19 +1902,10 @@
       els.copyNoticeBtn.title = t("copyDraftTitle");
       els.markSentBtn.textContent = t("markSent");
       setText(".right-rail .panel:nth-child(3) .panel-title", t("trainingStatus"));
-      updateScenarioName();
+      renderMeterTabs();
       if (!state.computed.length) {
         els.selectionLabel.textContent = t("selectHint");
         els.waveformMeta.textContent = t("waitingSample");
-      }
-    }
-
-    function updateScenarioName() {
-      if (state.samples.some((sample) => sample.id?.startsWith("live-"))) {
-        const serial = (els.serialInput.value || "BB8100017587").trim();
-        els.scenarioName.textContent = t("liveScenario", { serial });
-      } else {
-        els.scenarioName.textContent = t(state.scenario);
       }
     }
 
@@ -1593,49 +1952,74 @@
     function recompute() {
       syncOutputs();
       const config = currentConfig();
-      state.computed = runZeroTracker(state.samples, config, state.labels);
-      state.events = buildEvents(state.computed, config);
-      if (state.selectedIndex === null || state.selectedIndex >= state.computed.length) {
-        state.selectedIndex = state.events[0]?.index ?? Math.max(0, state.computed.length - 1);
-      }
+      recomputeMeter(state.activeMeter, config);
       render();
     }
 
+    function recomputeMeter(meter, config = currentConfig()) {
+      meter.computed = runZeroTracker(meter.samples, config, state.labels);
+      meter.events = buildEvents(meter.computed, config);
+      if (meter.selectedIndex === null || meter.selectedIndex >= meter.computed.length) {
+        meter.selectedIndex = meter.events[0]?.index ?? Math.max(0, meter.computed.length - 1);
+      }
+      renderMeterTabs();
+    }
+
     function startLive() {
-      stopLive();
-      const serial = (els.serialInput.value || "BB8100017587").trim();
+      const requested = normalizeSerial(els.serialInput.value);
+      if (els.serialInput.value.trim() && requested.length < 3) {
+        showToast(t("invalidSerial"));
+        return;
+      }
+      if (requested && !state.meterOrder.includes(requested)) {
+        if (state.meterOrder.length >= MAX_METERS) {
+          showToast(t("meterLimitReached"));
+          return;
+        }
+        ensureMeter(requested);
+        state.activeSerial = requested;
+        els.serialInput.value = "";
+        saveMeterList();
+      } else if (requested) {
+        state.activeSerial = requested;
+        els.serialInput.value = "";
+        saveMeterList();
+      }
+      const meter = state.activeMeter;
+      stopLive(meter);
+      const serial = meter.serial;
       const endpoint = liveEndpoint(serial);
-      state.samples = [];
-      state.computed = [];
-      state.events = [];
-      state.selectedIndex = null;
-      state.liveGeometryApplied = false;
-      state.liveLastFrameAtMs = null;
-      state.liveErrorAtMs = null;
-      state.lastQualityRenderKey = "";
-      state.scenarioName = "live";
-      updateScenarioName();
-      state.liveSource = new EventSource(endpoint);
-      state.liveConnected = true;
+      meter.samples = [];
+      meter.computed = [];
+      meter.events = [];
+      meter.selectedIndex = null;
+      meter.liveGeometryApplied = false;
+      meter.liveLastFrameAtMs = null;
+      meter.liveErrorAtMs = null;
+      meter.lastQualityRenderKey = "";
+      meter.liveSource = new EventSource(endpoint);
+      meter.liveConnected = true;
       els.liveSource.textContent = endpoint;
-      state.liveSource.onopen = () => {
-        state.liveConnected = true;
-        state.liveErrorAtMs = null;
+      meter.liveSource.onopen = () => {
+        meter.liveConnected = true;
+        meter.liveErrorAtMs = null;
         showToast(t("toastConnected", { serial }));
-        render();
+        if (isActiveMeter(meter)) render();
+        else renderMeterTabs();
       };
-      state.liveSource.onerror = () => {
-        state.liveConnected = false;
-        state.liveErrorAtMs = Date.now();
+      meter.liveSource.onerror = () => {
+        meter.liveConnected = false;
+        meter.liveErrorAtMs = Date.now();
         showToast(t("toastInterrupted"));
-        render();
+        if (isActiveMeter(meter)) render();
+        else renderMeterTabs();
       };
-      state.liveSource.addEventListener("frame", (event) => {
+      meter.liveSource.addEventListener("frame", (event) => {
         try {
-          state.liveConnected = true;
-          state.liveLastFrameAtMs = Date.now();
-          state.liveErrorAtMs = null;
-          appendLiveRecord(JSON.parse(event.data));
+          meter.liveConnected = true;
+          meter.liveLastFrameAtMs = Date.now();
+          meter.liveErrorAtMs = null;
+          appendLiveRecord(JSON.parse(event.data), meter);
         } catch (error) {
           showToast(t("toastParseFailed", { message: error.message }));
         }
@@ -1643,14 +2027,15 @@
       render();
     }
 
-    function stopLive() {
-      if (state.liveSource) {
-        state.liveSource.close();
+    function stopLive(meter = state.activeMeter) {
+      if (meter.liveSource) {
+        meter.liveSource.close();
       }
-      state.liveSource = null;
-      state.liveConnected = false;
-      state.liveErrorAtMs = Date.now();
-      renderTraining();
+      meter.liveSource = null;
+      meter.liveConnected = false;
+      meter.liveErrorAtMs = Date.now();
+      if (isActiveMeter(meter)) renderTraining();
+      renderMeterTabs();
     }
 
     function clearUiData() {
@@ -1687,6 +2072,7 @@
       els.waveformMeta.textContent = t("clearedWaveform");
       els.waveformStats.innerHTML = "";
       renderRunStatus();
+      renderMeterTabs();
       resizeAllCharts();
       showToast(state.liveSource ? t("toastClearedLive") : t("toastCleared"));
     }
@@ -1700,27 +2086,28 @@
       return `/stream?${params}`;
     }
 
-    function appendLiveRecord(record) {
-      if (!state.liveGeometryApplied && record.pipe_outer_diameter_mm && record.pipe_wall_thickness_mm) {
+    function appendLiveRecord(record, meter = state.activeMeter) {
+      if (!meter.liveGeometryApplied && record.pipe_outer_diameter_mm && record.pipe_wall_thickness_mm && isActiveMeter(meter)) {
         els.pipeOuterDiameter.value = String(record.pipe_outer_diameter_mm);
         els.pipeWallThickness.value = String(record.pipe_wall_thickness_mm);
-        state.liveGeometryApplied = true;
+        meter.liveGeometryApplied = true;
         syncOutputs();
       }
-      const sample = sampleFromLiveRecord(record);
-      const previous = state.samples[state.samples.length - 1];
+      const sample = sampleFromLiveRecord(record, meter);
+      const previous = meter.samples[meter.samples.length - 1];
       sample.receivedAtMs = Date.now();
       sample.sourceGapMs = previous ? sample.timestamp - previous.timestamp : 0;
       sample.arrivalGapMs = previous?.receivedAtMs ? sample.receivedAtMs - previous.receivedAtMs : 0;
       sample.dataGap = sample.sourceGapMs > SAMPLE_GAP_AFTER_MS;
       sample.dataQuality = sample.dataGap ? "gap" : "ok";
-      state.samples.push(sample);
-      if (state.samples.length > 1200) state.samples.shift();
-      state.selectedIndex = state.samples.length - 1;
-      recompute();
+      meter.samples.push(sample);
+      if (meter.samples.length > 1200) meter.samples.shift();
+      meter.selectedIndex = meter.samples.length - 1;
+      recomputeMeter(meter);
+      if (isActiveMeter(meter)) render();
     }
 
-    function sampleFromLiveRecord(record) {
+    function sampleFromLiveRecord(record, meter = state.activeMeter) {
       const features = record.features || {};
       const config = currentConfig();
       const areaM2 = finiteNumber(record.pipe_area_from_geometry_m2)
@@ -1739,11 +2126,11 @@
         ?? fsToFr(rawFsMps, areaM2);
       const onboardTemp = finiteNumber(record.onboard_temperature_c) ?? finiteNumber(record.ots);
       const fallbackTemp = finiteNumber(record.temperature_c) ?? onboardTemp ?? 25;
-      const timestamp = parseTimestamp(record.timestamp || record.server_timestamp || Date.now(), state.samples.length);
+      const timestamp = parseTimestamp(record.timestamp || record.server_timestamp || Date.now(), meter.samples.length);
       return {
-        id: `live-${record.serial || "meter"}-${timestamp.toISOString()}-${state.samples.length}`,
+        id: `live-${record.serial || meter.serial || "meter"}-${timestamp.toISOString()}-${meter.samples.length}`,
         timestamp,
-        serial: record.serial || "",
+        serial: record.serial || meter.serial || "",
         temperatureC: fallbackTemp,
         otsTempC: onboardTemp,
         rawFsMps,
@@ -1977,6 +2364,7 @@
       els.sampleCount.textContent = `${state.computed.length} samples`;
       els.eventCount.textContent = String(state.events.length);
       renderRunStatus();
+      renderMeterTabs();
     }
 
     function renderRunStatus() {
@@ -2008,7 +2396,17 @@
 
     function renderKpis() {
       const row = state.computed[state.selectedIndex] || state.computed[state.computed.length - 1];
-      if (!row) return;
+      if (!row) {
+        els.kpiTemp.textContent = "--";
+        els.kpiRaw.textContent = "--";
+        els.kpiRawM3h.textContent = "--";
+        els.kpiCorrected.textContent = "--";
+        els.kpiCorrectedM3h.textContent = "--";
+        els.kpiPublished.textContent = "--";
+        els.kpiPublishedM3h.textContent = "--";
+        els.kpiRisk.textContent = "--";
+        return;
+      }
       const quality = currentDataQuality();
       const currentFlowUnknown = shouldHideCurrentFlow(row, quality);
       els.kpiTemp.textContent = `${row.temperatureC.toFixed(1)} C`;
@@ -2028,18 +2426,19 @@
       const training = row?.training || null;
       const quality = currentDataQuality();
       els.trainingStatus.textContent = quality.trainingStatus;
-      els.trainingStatus.className = quality.status === "live" || quality.status === "demo" ? "status-pill green" : quality.status === "disconnected" ? "status-pill red" : "status-pill amber";
+      els.trainingStatus.className = quality.status === "live" || quality.status === "offline" ? "status-pill green" : quality.status === "disconnected" ? "status-pill red" : "status-pill amber";
       els.trainUpdates.textContent = training ? `${training.updates ?? 0} / ${training.total_updates ?? 0}` : "--";
       els.trainStable.textContent = training?.stable_ratio === undefined ? "--" : `${Math.round(training.stable_ratio * 100)}%`;
       els.trainFreeze.textContent = quality.freezeReason || training?.freeze_reason || "--";
       els.dataQuality.textContent = quality.label;
       els.lastSampleAge.textContent = quality.ageText;
       if (!state.liveSource) {
-        els.liveSource.textContent = state.samples.some((sample) => sample.id?.startsWith("live-")) ? "disconnected" : "local demo";
+        els.liveSource.textContent = state.samples.some((sample) => sample.id?.startsWith("live-")) ? "disconnected" : "not connected";
       }
     }
 
     function refreshLiveQuality() {
+      renderMeterTabs();
       if (!state.liveSource && !state.samples.some((sample) => sample.id?.startsWith("live-"))) return;
       const quality = currentDataQuality();
       const key = `${quality.status}:${Math.floor((quality.ageMs || 0) / 1000)}`;
@@ -2051,32 +2450,43 @@
       renderRunStatus();
     }
 
-    function currentDataQuality() {
-      const hasLiveSamples = state.samples.some((sample) => sample.id?.startsWith("live-"));
-      if (!state.liveSource && !hasLiveSamples) {
+    function currentDataQuality(meter = state.activeMeter) {
+      const hasLiveSamples = meter.samples.some((sample) => sample.id?.startsWith("live-"));
+      if (!meter.liveSource && !hasLiveSamples && !meter.samples.length) {
         return {
-          status: "demo",
-          label: "local demo",
-          shortLabel: "local demo",
-          trainingStatus: "Demo",
+          status: "disconnected",
+          label: "no data",
+          shortLabel: "no data",
+          trainingStatus: "No data",
           ageText: "--",
           ageMs: 0,
           freezeReason: "",
         };
       }
-      if (!state.liveLastFrameAtMs) {
+      if (!meter.liveSource && !hasLiveSamples) {
         return {
-          status: state.liveSource ? "connecting" : "disconnected",
-          label: state.liveSource ? "connecting, no frame yet" : "disconnected, no frame",
-          shortLabel: state.liveSource ? "waiting for data" : "disconnected",
-          trainingStatus: state.liveSource ? "Connecting" : "Disconnected",
+          status: "offline",
+          label: "offline data",
+          shortLabel: "offline",
+          trainingStatus: "Offline",
+          ageText: "--",
+          ageMs: 0,
+          freezeReason: "",
+        };
+      }
+      if (!meter.liveLastFrameAtMs) {
+        return {
+          status: meter.liveSource ? "connecting" : "disconnected",
+          label: meter.liveSource ? "connecting, no frame yet" : "disconnected, no frame",
+          shortLabel: meter.liveSource ? "waiting for data" : "disconnected",
+          trainingStatus: meter.liveSource ? "Connecting" : "Disconnected",
           ageText: "--",
           ageMs: 0,
           freezeReason: "waiting_for_data",
         };
       }
-      const ageMs = Math.max(0, Date.now() - state.liveLastFrameAtMs);
-      if (!state.liveSource || (!state.liveConnected && ageMs > LIVE_STALE_AFTER_MS) || ageMs > LIVE_DISCONNECTED_AFTER_MS) {
+      const ageMs = Math.max(0, Date.now() - meter.liveLastFrameAtMs);
+      if (!meter.liveSource || (!meter.liveConnected && ageMs > LIVE_STALE_AFTER_MS) || ageMs > LIVE_DISCONNECTED_AFTER_MS) {
         return {
           status: "disconnected",
           label: "disconnected, current flow unknown",
@@ -2109,10 +2519,10 @@
       };
     }
 
-    function shouldHideCurrentFlow(row, quality) {
+    function shouldHideCurrentFlow(row, quality, meter = state.activeMeter) {
       return Boolean(
         row &&
-        row.index === state.computed.length - 1 &&
+        row.index === meter.computed.length - 1 &&
         (quality.status === "stale" || quality.status === "disconnected" || quality.status === "connecting")
       );
     }
@@ -2214,6 +2624,7 @@
       const row = state.computed[state.selectedIndex];
       if (!row) {
         els.noticeText.value = "";
+        els.selectionLabel.textContent = t("selectHint");
         return;
       }
       const quality = currentDataQuality();
@@ -2488,74 +2899,6 @@
       recompute();
       selectIndex(index);
       showToast(t("markedLabel", { time: formatTime(row.timestamp), label }));
-    }
-
-    function generateDemoData(scenario) {
-      const rows = [];
-      const start = new Date("2026-05-28T08:00:00");
-      const count = 240;
-      const demoAreaM2 = pipeGeometry(26.67, 2.87).areaM2;
-      let seed = 42 + scenario.length * 17;
-      const rand = () => {
-        seed = (seed * 1664525 + 1013904223) >>> 0;
-        return seed / 4294967296;
-      };
-
-      for (let i = 0; i < count; i += 1) {
-        const timestamp = new Date(start.getTime() + i * 2 * 60000);
-        const x = i / (count - 1);
-        let temperatureC = 22;
-        if (scenario === "heating") {
-          temperatureC = 21.4 + 8.8 * smoothstep(x) + 0.35 * Math.sin(i / 8);
-        } else if (scenario === "cooling") {
-          temperatureC = 31.2 - 8.6 * smoothstep(x) + 0.30 * Math.sin(i / 7);
-        } else {
-          temperatureC = 22.2 + 7.0 * smoothstep(Math.min(x * 1.8, 1)) - 4.2 * smoothstep(Math.max((x - 0.55) * 2.2, 0)) + 0.28 * Math.sin(i / 9);
-        }
-
-        let trueFrM3h = 0;
-        if (i > 50 && i < 67) trueFrM3h = 0.46 + 0.05 * Math.sin(i / 2);
-        if (i > 130 && i < 150) trueFrM3h = 0.038 + 0.007 * Math.sin(i / 3);
-        if (scenario !== "cooling" && i > 182 && i < 195) trueFrM3h = 0.22 + 0.025 * Math.sin(i / 2);
-
-        const prevTemp = i === 0 ? temperatureC : rows[i - 1].temperatureC;
-        const tempRate = i === 0 ? 0 : (temperatureC - prevTemp) / 2;
-        const trueZeroDriftFs = 0.0020 * (temperatureC - 22) + (tempRate >= 0 ? 0.0042 : 0.0060) * tempRate;
-        const trueZeroDriftFr = fsToFr(trueZeroDriftFs, demoAreaM2);
-        const phantomPulseFr = (i > 92 && i < 116 ? 0.030 * Math.sin((i - 92) / 24 * Math.PI) : 0) + (i > 205 && i < 224 ? -0.026 * Math.sin((i - 205) / 19 * Math.PI) : 0);
-        const noiseFr = (rand() - 0.5) * 0.010;
-        const rawFrM3h = trueFrM3h + trueZeroDriftFr + phantomPulseFr + noiseFr;
-        const rawFsMps = frToFs(rawFrM3h, demoAreaM2);
-        const otsTempC = temperatureC + 2.8 + Math.abs(tempRate) * 8 + Math.abs(phantomPulseFr) * 1.5 + (rand() - 0.5) * 0.35;
-        const driftLoad = Math.abs(tempRate) + Math.abs(trueZeroDriftFs) * 18;
-        const templateCorr = clamp(0.9982 - driftLoad * 0.013 - (trueFrM3h > 0.15 ? 0.0004 : 0) + (rand() - 0.5) * 0.0008, 0.989, 0.9992);
-        const noiseRms = clamp(0.245 + Math.abs(tempRate) * 0.18 + Math.abs(phantomPulseFr) * 0.50 + (rand() - 0.5) * 0.018, 0.22, 0.33);
-        const gateRms = clamp(1.06 + Math.abs(trueFrM3h) * 0.15 + Math.abs(trueZeroDriftFs) * 8 + (rand() - 0.5) * 0.035, 0.94, 1.25);
-        const snrDb = clamp(20 * Math.log10(gateRms / Math.max(noiseRms, 0.001)), 10.2, 14.8);
-
-        rows.push({
-          id: `demo-${scenario}-${i}`,
-          timestamp,
-          temperatureC,
-          rawFsMps,
-          rawFrM3h,
-          otsTempC,
-          trueFsMps: frToFs(trueFrM3h, demoAreaM2),
-          trueFrM3h,
-          templateCorr,
-          noiseRms,
-          gateRms,
-          snrDb,
-          baselineV: null,
-          peakAbsGateV: gateRms * 1.58,
-          firstArrivalOffsetSamples: -101 + (rand() - 0.5) * 4,
-          peakOffsetSamples: -99 + (rand() - 0.5) * 4,
-          lowClipRatio: clamp(0.035 + Math.abs(phantomPulseFr) * 0.10 + (rand() - 0.5) * 0.012, 0, 0.09),
-          highClipRatio: 0,
-          ptpV: gateRms * 2.9,
-        });
-      }
-      return rows;
     }
 
     function handleCsvUpload(event) {
