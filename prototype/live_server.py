@@ -82,6 +82,9 @@ class LiveHandler(SimpleHTTPRequestHandler):
             self.serve_waveform_csv()
             return
         if parsed.path == "/status":
+            if not self.is_authorized(parsed.query):
+                self.unauthorized()
+                return
             self.status()
             return
         super().do_GET()

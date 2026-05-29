@@ -84,6 +84,9 @@ lost on restart.
 - `/health` - Railway health check.
 - `/status` - health and file-path status.
 
+When `APP_TOKEN` is set, `/stream`, `/waveform.csv`, and `/status` require the
+same `?token=...` query parameter.
+
 ## Local smoke test
 
 Run only the web UI without starting MQTT:
