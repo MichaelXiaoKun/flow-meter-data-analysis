@@ -1401,7 +1401,7 @@
         appTitle: "温度零点追踪实验台",
         subtitle: "本地测试 phantom flow、温度漂移、用户确认标签和客户通知文案",
         connectLive: "连接实时",
-        disconnect: "断开",
+        disconnect: "本机断开",
         clearData: "清理数据",
         meters: "流量计",
         addSerialPlaceholder: "添加 serial",
@@ -1521,7 +1521,7 @@
         appTitle: "Temperature Zero Tracking Lab",
         subtitle: "Local prototype for phantom flow, temperature drift, user labels, and customer messaging",
         connectLive: "Connect live",
-        disconnect: "Disconnect",
+        disconnect: "Disconnect here",
         clearData: "Clear data",
         meters: "Meters",
         addSerialPlaceholder: "Add serial",
@@ -1790,7 +1790,7 @@
 
       els.recomputeBtn.addEventListener("click", recompute);
       els.liveBtn.addEventListener("click", startLive);
-      els.stopLiveBtn.addEventListener("click", () => stopLive());
+      els.stopLiveBtn.addEventListener("click", () => stopLiveLocal());
       els.clearDataBtn.addEventListener("click", () => clearUiData());
       els.addSerialBtn.addEventListener("click", addSerialFromInput);
       els.serialInput.addEventListener("keydown", (event) => {
@@ -2161,6 +2161,10 @@
         }
         renderMeterTabs();
       }
+    }
+
+    function stopLiveLocal(meter = state.activeMeter) {
+      stopLive(meter, { sync: false });
     }
 
     async function clearUiData() {
