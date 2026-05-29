@@ -494,6 +494,11 @@
       cursor: help;
     }
 
+    .kpi[data-kpi]:focus {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+    }
+
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -1053,7 +1058,7 @@
             <strong id="kpiCorrected">--</strong>
             <small id="kpiCorrectedM3h">--</small>
           </div>
-          <div class="kpi" data-kpi="user-visible">
+          <div class="kpi" data-kpi="user-visible" tabindex="0" aria-label="User-visible GPM">
             <span>用户看到</span>
             <strong id="kpiPublished">--</strong>
             <small id="kpiPublishedM3h">--</small>
@@ -1388,6 +1393,7 @@
       kpiRawM3h: document.getElementById("kpiRawM3h"),
       kpiCorrected: document.getElementById("kpiCorrected"),
       kpiCorrectedM3h: document.getElementById("kpiCorrectedM3h"),
+      kpiPublishedCard: document.querySelector(".kpi[data-kpi='user-visible']"),
       kpiPublished: document.getElementById("kpiPublished"),
       kpiPublishedM3h: document.getElementById("kpiPublishedM3h"),
       kpiRisk: document.getElementById("kpiRisk"),
@@ -2102,17 +2108,27 @@
 
     function bindKpiHover() {
       document.querySelectorAll(".kpi[data-kpi]").forEach((el) => {
-        el.addEventListener("mousemove", (event) => {
-          const row = selectedRow();
-          const html = kpiTooltipHtml(el.dataset.kpi, row);
-          if (!html) {
-            hideChartTooltip();
-            return;
-          }
-          showChartTooltip(html, event.clientX, event.clientY);
-        });
+        const show = (event) => showKpiTooltip(el, event);
+        el.addEventListener("mouseenter", show);
+        el.addEventListener("mousemove", show);
+        el.addEventListener("focus", show);
         el.addEventListener("mouseleave", hideChartTooltip);
+        el.addEventListener("blur", hideChartTooltip);
       });
+    }
+
+    function showKpiTooltip(el, event) {
+      const row = selectedRow();
+      syncKpiNativeTooltip(el, row);
+      const html = kpiTooltipHtml(el.dataset.kpi, row);
+      if (!html) {
+        hideChartTooltip();
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const clientX = Number.isFinite(event.clientX) ? event.clientX : rect.left + rect.width / 2;
+      const clientY = Number.isFinite(event.clientY) ? event.clientY : rect.top + rect.height / 2;
+      showChartTooltip(html, clientX, clientY);
     }
 
     function addSerialFromInput() {
@@ -2772,6 +2788,9 @@
       const displayedFrM3h = displayedGpm / 4.4028675393;
       const correctedFrM3h = fsToFr(correctedFsMps, config.areaM2);
       const zeroEstimateFrM3h = fsToFr(zeroEstimateFs, config.areaM2);
+      const temperatureC = historySeriesMetric(point, "temperature_c") ?? 25;
+      const publishedGpm = m3hToGpm(correctedFrM3h);
+      const correctionAmplification = Math.abs(correctedFsMps) / Math.max(Math.abs(rawFsMps), config.deadbandFsMps * 0.12, 0.00025);
       return {
         id: `history-${meter.serial}-${timestamp.toISOString()}-${index}`,
         index,
@@ -2781,8 +2800,10 @@
         backendComputed: true,
         historyBucketCount: point.count || 1,
         waveformSupported: false,
-        temperatureC: historySeriesMetric(point, "temperature_c") ?? 25,
+        temperatureC,
         otsTempC: historySeriesMetric(point, "ots_temp_c"),
+        rawThermalTempC: temperatureC,
+        thermalTempC: temperatureC,
         rawFsMps,
         rawFrM3h,
         rawGpm: m3hToGpm(rawFrM3h),
@@ -2794,9 +2815,13 @@
         correctedGpm: m3hToGpm(correctedFrM3h),
         publishedFsMps: correctedFsMps,
         publishedFrM3h: correctedFrM3h,
-        publishedGpm: m3hToGpm(correctedFrM3h),
+        publishedGpm,
         displayedFrM3h,
         displayedGpm,
+        autoCorrected: false,
+        displaySuppressionReason: "",
+        correctionAmplification,
+        correctionOverrun: false,
         phantomProbability: historySeriesMetric(point, "phantom_probability") ?? 0,
         eventProbability: historySeriesMetric(point, "event_probability") ?? 0,
         zeroProbability: historySeriesMetric(point, "zero_probability") ?? 0,
@@ -3006,11 +3031,18 @@
       const publishedFrM3h = sample.publishedFrM3h ?? fsToFr(publishedFsMps, config.areaM2);
       const displayedGpm = sample.displayedGpm ?? Math.max(0, m3hToGpm(publishedFrM3h));
       const displayedFrM3h = sample.displayedFrM3h ?? displayedGpm / 4.4028675393;
+      const temperatureC = sample.temperatureC ?? 25;
+      const rawThermalTempC = sample.rawThermalTempC ?? temperatureC;
+      const thermalTempC = sample.thermalTempC ?? rawThermalTempC;
+      const correctionAmplification = sample.correctionAmplification ??
+        Math.abs(correctedFsMps) / Math.max(Math.abs(rawFsMps), config.deadbandFsMps * 0.12, 0.00025);
       return {
         ...sample,
         index,
-        temperatureC: sample.temperatureC ?? 25,
+        temperatureC,
         otsTempC: sample.otsTempC ?? null,
+        rawThermalTempC,
+        thermalTempC,
         diagnoseDtNs: sample.diagnoseDtNs ?? null,
         diagnoseTtNs: sample.diagnoseTtNs ?? null,
         tempRate: sample.tempRate ?? 0,
@@ -3031,7 +3063,7 @@
         displayedGpm,
         autoCorrected: Boolean(sample.autoCorrected),
         displaySuppressionReason: sample.displaySuppressionReason || "",
-        correctionAmplification: sample.correctionAmplification ?? 0,
+        correctionAmplification,
         correctionOverrun: Boolean(sample.correctionOverrun),
         waveformDrift: sample.waveformDrift ?? 0,
         zeroProbability: sample.zeroProbability ?? 0,
@@ -3496,6 +3528,7 @@
         els.kpiPublishedM3h.textContent = "--";
         els.kpiRisk.textContent = "--";
         els.kpiAction.textContent = "--";
+        syncKpiNativeTooltip(els.kpiPublishedCard, null);
         return;
       }
       const quality = currentDataQuality();
@@ -3512,6 +3545,7 @@
         : `${row.displayedFrM3h.toFixed(3)} m3/h displayed`;
       els.kpiRisk.textContent = decision.label;
       els.kpiAction.textContent = decision.action;
+      syncKpiNativeTooltip(els.kpiPublishedCard, row);
     }
 
     function renderTraining() {
@@ -4526,30 +4560,30 @@
     function timeSeriesTooltip(chartId, row) {
       if (chartId === "tempChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          [t("tooltipTemperature"), `${row.rawThermalTempC.toFixed(2)} C`],
-          [t("tooltipFilteredTemp"), `${row.thermalTempC.toFixed(2)} C`],
-          ["OTS", row.otsTempC === null ? "--" : `${row.otsTempC.toFixed(2)} C`],
-          [t("tooltipTempRate"), `${row.tempRate.toFixed(3)} C/min`],
-          [t("tooltipRawTempRate"), `${row.tempRateRaw.toFixed(3)} C/min`],
+          [t("tooltipTemperature"), `${formatMaybe(row.rawThermalTempC ?? row.temperatureC, 2)} C`],
+          [t("tooltipFilteredTemp"), `${formatMaybe(row.thermalTempC ?? row.temperatureC, 2)} C`],
+          ["OTS", row.otsTempC === null ? "--" : `${formatMaybe(row.otsTempC, 2)} C`],
+          [t("tooltipTempRate"), `${formatMaybe(row.tempRate, 3)} C/min`],
+          [t("tooltipRawTempRate"), `${formatMaybe(row.tempRateRaw, 3)} C/min`],
           [t("tooltipDiagnoseDt"), `${formatMaybe(row.diagnoseDtNs, 3)} ns`],
           [t("tooltipDiagnoseTt"), `${formatMaybe(row.diagnoseTtNs, 3)} ns`],
         ]);
       }
       if (chartId === "flowChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          [t("tooltipRaw"), `${row.rawFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipZeroEstimate"), `${row.zeroEstimateFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipCorrected"), `${row.correctedFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipPublished"), `${row.publishedFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipFsZero"), `${row.zeroEstimateFs.toFixed(4)} m/s`],
+          [t("tooltipRaw"), `${formatMaybe(row.rawFrM3h, 3)} m3/h`],
+          [t("tooltipZeroEstimate"), `${formatMaybe(row.zeroEstimateFrM3h, 3)} m3/h`],
+          [t("tooltipCorrected"), `${formatMaybe(row.correctedFrM3h, 3)} m3/h`],
+          [t("tooltipPublished"), `${formatMaybe(row.publishedFrM3h, 3)} m3/h`],
+          [t("tooltipFsZero"), `${formatMaybe(row.zeroEstimateFs, 4)} m/s`],
         ]);
       }
       if (chartId === "displayChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          [t("tooltipDisplayed"), `${row.displayedGpm.toFixed(3)} GPM`],
-          [t("tooltipDisplayedM3h"), `${row.displayedFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipCorrected"), `${row.correctedGpm.toFixed(3)} GPM`],
-          [t("tooltipAmplification"), `${row.correctionAmplification.toFixed(1)}x`],
+          [t("tooltipDisplayed"), `${formatMaybe(row.displayedGpm, 3)} GPM`],
+          [t("tooltipDisplayedM3h"), `${formatMaybe(row.displayedFrM3h, 3)} m3/h`],
+          [t("tooltipCorrected"), `${formatMaybe(row.correctedGpm, 3)} GPM`],
+          [t("tooltipAmplification"), `${formatMaybe(row.correctionAmplification, 1)}x`],
           [t("tooltipDisplayGuard"), row.displaySuppressionReason || "--"],
           [t("tooltipReading"), readingDecision(row).label],
         ]);
@@ -4568,18 +4602,40 @@
 
     function kpiTooltipHtml(kind, row) {
       if (!row) return null;
-      if (kind === "user-visible") {
-        return tooltipHtml(t("userGpm"), [
-          [t("time"), formatTime(row.timestamp)],
-          [t("tooltipDisplayed"), `${row.displayedGpm.toFixed(3)} GPM`],
-          [t("tooltipDisplayedM3h"), `${row.displayedFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipCorrected"), `${row.correctedGpm.toFixed(3)} GPM`],
-          [t("tooltipPublished"), `${row.publishedGpm.toFixed(3)} GPM`],
-          [t("tooltipDisplayGuard"), row.displaySuppressionReason || "--"],
-          [t("tooltipReading"), readingDecision(row).label],
-        ]);
-      }
-      return null;
+      const rows = kpiTooltipRows(kind, row);
+      return rows ? tooltipHtml(kpiTooltipTitle(kind), rows) : null;
+    }
+
+    function kpiTooltipText(kind, row) {
+      if (!row) return "";
+      const rows = kpiTooltipRows(kind, row);
+      if (!rows) return "";
+      return [kpiTooltipTitle(kind), ...rows.map(([label, value]) => `${label}: ${value}`)].join("\n");
+    }
+
+    function kpiTooltipTitle(kind) {
+      if (kind === "user-visible") return t("userGpm");
+      return "";
+    }
+
+    function kpiTooltipRows(kind, row) {
+      if (kind !== "user-visible") return null;
+      return [
+        [t("time"), formatTime(row.timestamp)],
+        [t("tooltipDisplayed"), `${formatMaybe(row.displayedGpm, 3)} GPM`],
+        [t("tooltipDisplayedM3h"), `${formatMaybe(row.displayedFrM3h, 3)} m3/h`],
+        [t("tooltipCorrected"), `${formatMaybe(row.correctedGpm, 3)} GPM`],
+        [t("tooltipPublished"), `${formatMaybe(row.publishedGpm, 3)} GPM`],
+        [t("tooltipDisplayGuard"), row.displaySuppressionReason || "--"],
+        [t("tooltipReading"), readingDecision(row).label],
+      ];
+    }
+
+    function syncKpiNativeTooltip(el, row) {
+      if (!el) return;
+      const label = kpiTooltipText(el.dataset.kpi, row) || kpiTooltipTitle(el.dataset.kpi);
+      el.title = label;
+      el.setAttribute("aria-label", label);
     }
 
     function tooltipHtml(title, rows) {
@@ -5024,7 +5080,7 @@
     }
 
     function formatFlow(frM3h, gpm) {
-      return `${Number(gpm).toFixed(3)} GPM (${Number(frM3h).toFixed(3)} m3/h)`;
+      return `${formatMaybe(gpm, 3)} GPM (${formatMaybe(frM3h, 3)} m3/h)`;
     }
 
     function escapeHtml(value) {
