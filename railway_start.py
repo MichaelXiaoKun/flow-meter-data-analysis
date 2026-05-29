@@ -105,6 +105,8 @@ def analyzer_command(data: Path) -> list[str]:
         cmd.append("--self-train")
     if env_bool("MQTT_TLS", False):
         cmd.append("--tls")
+    if env_bool("EMPTY_STRICT", True):
+        cmd.append("--empty-strict")
     mqtt_username = env_str("MQTT_USERNAME")
     mqtt_password = env_str("MQTT_PASSWORD")
     if mqtt_username:

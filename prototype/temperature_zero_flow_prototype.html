@@ -1408,9 +1408,13 @@
       band: "rgba(185, 28, 28, 0.08)",
     };
 
-    const LIVE_STALE_AFTER_MS = 6500;
-    const LIVE_DISCONNECTED_AFTER_MS = 15000;
-    const SAMPLE_GAP_AFTER_MS = 6500;
+    const LIVE_STALE_AFTER_MS = 20000;
+    const LIVE_DISCONNECTED_AFTER_MS = 60000;
+    const LIVE_HEARTBEAT_STALE_AFTER_MS = 20000;
+    const SAMPLE_GAP_AFTER_MS = 20000;
+    const WAVEFORM_AUTO_REFRESH_MS = 10000;
+    const WAVEFORM_CSV_CACHE_MS = 10000;
+    const WAVEFORM_CSV_LIMIT = 240;
     const WAVEFORM_CSV_PATH = "waveform.csv";
     const APP_TOKEN_KEY = "zeroFlowPrototypeAppToken";
     const WAVEFORM_BASELINE_SAMPLES = 160;
@@ -1866,6 +1870,7 @@
         liveConnected: false,
         liveGeometryApplied: false,
         liveLastFrameAtMs: null,
+        liveHeartbeatAtMs: null,
         liveErrorAtMs: null,
         liveSessionId: 0,
         lastQualityRenderKey: "",
@@ -1873,6 +1878,7 @@
         waveformTimer: null,
         waveformCsvText: "",
         waveformCsvLoadedAtMs: 0,
+        waveformAutoLoadedAtMs: 0,
         clearWatermarkMs: Number(state.clearWatermarks?.[serial] || 0),
       };
     }
@@ -2373,6 +2379,7 @@
       meter.selectedIndex = null;
       meter.liveGeometryApplied = false;
       meter.liveLastFrameAtMs = null;
+      meter.liveHeartbeatAtMs = null;
       meter.liveErrorAtMs = null;
       meter.lastQualityRenderKey = "";
       const liveSource = new EventSource(endpoint);
@@ -2384,6 +2391,7 @@
       liveSource.onopen = () => {
         if (meter.liveSessionId !== liveSessionId || meter.liveSource !== liveSource) return;
         meter.liveConnected = true;
+        meter.liveHeartbeatAtMs = Date.now();
         meter.liveErrorAtMs = null;
         if (!options.silent) showToast(t("toastConnected", { serial }));
         if (isActiveMeter(meter)) render();
@@ -2397,10 +2405,19 @@
         if (isActiveMeter(meter)) render();
         else renderMeterTabs();
       };
+      liveSource.addEventListener("status", () => {
+        if (meter.liveSessionId !== liveSessionId || meter.liveSource !== liveSource) return;
+        meter.liveConnected = true;
+        meter.liveHeartbeatAtMs = Date.now();
+        meter.liveErrorAtMs = null;
+        if (isActiveMeter(meter)) refreshLiveQuality();
+        else renderMeterTabs();
+      });
       liveSource.addEventListener("frame", (event) => {
         if (meter.liveSessionId !== liveSessionId || meter.liveSource !== liveSource) return;
         try {
           meter.liveConnected = true;
+          meter.liveHeartbeatAtMs = Date.now();
           meter.liveLastFrameAtMs = Date.now();
           meter.liveErrorAtMs = null;
           appendLiveRecord(JSON.parse(event.data), meter);
@@ -2459,10 +2476,12 @@
       meter.selectedIndex = null;
       meter.liveGeometryApplied = false;
       meter.liveLastFrameAtMs = null;
+      meter.liveHeartbeatAtMs = null;
       meter.liveErrorAtMs = null;
       meter.lastQualityRenderKey = "";
       meter.waveformCsvText = "";
       meter.waveformCsvLoadedAtMs = 0;
+      meter.waveformAutoLoadedAtMs = 0;
       els.auditRows.innerHTML = "";
       els.eventList.innerHTML = `<div class="empty">${t("noData")}</div>`;
       els.noticeText.value = "";
@@ -2615,7 +2634,7 @@
       sample.receivedAtMs = Date.now();
       sample.sourceGapMs = previous ? sample.timestamp - previous.timestamp : 0;
       sample.arrivalGapMs = previous?.receivedAtMs ? sample.receivedAtMs - previous.receivedAtMs : 0;
-      sample.dataGap = sample.sourceGapMs > SAMPLE_GAP_AFTER_MS;
+      sample.dataGap = sample.sourceGapMs > sampleGapThresholdMs(meter);
       sample.dataQuality = sample.dataGap ? "gap" : "ok";
       meter.samples.push(sample);
       if (meter.samples.length > 1200) meter.samples.shift();
@@ -3064,7 +3083,10 @@
         };
       }
       const ageMs = Math.max(0, Date.now() - meter.liveLastFrameAtMs);
-      if (!meter.liveSource || (!meter.liveConnected && ageMs > LIVE_STALE_AFTER_MS) || ageMs > LIVE_DISCONNECTED_AFTER_MS) {
+      const thresholds = liveCadenceThresholds(meter);
+      const heartbeatAgeMs = meter.liveHeartbeatAtMs ? Math.max(0, Date.now() - meter.liveHeartbeatAtMs) : Number.POSITIVE_INFINITY;
+      const streamHealthy = meter.liveSource && (meter.liveConnected || heartbeatAgeMs <= LIVE_HEARTBEAT_STALE_AFTER_MS);
+      if (!meter.liveSource || (!streamHealthy && ageMs > thresholds.staleMs) || ageMs > thresholds.disconnectedMs) {
         return {
           status: "disconnected",
           label: "disconnected, current flow unknown",
@@ -3075,7 +3097,7 @@
           freezeReason: "data_gap_learning_frozen",
         };
       }
-      if (ageMs > LIVE_STALE_AFTER_MS) {
+      if (ageMs > thresholds.staleMs) {
         return {
           status: "stale",
           label: "stale, current flow unknown",
@@ -3095,6 +3117,26 @@
         ageMs,
         freezeReason: "",
       };
+    }
+
+    function liveCadenceThresholds(meter = state.activeMeter) {
+      const gaps = meter.samples
+        .slice(-20)
+        .map((sample) => finiteNumber(sample.arrivalGapMs) ?? finiteNumber(sample.sourceGapMs))
+        .filter((gap) => gap && gap > 250 && gap < 120000)
+        .sort((a, b) => a - b);
+      if (gaps.length < 3) {
+        return { staleMs: LIVE_STALE_AFTER_MS, disconnectedMs: LIVE_DISCONNECTED_AFTER_MS };
+      }
+      const median = gaps[Math.floor(gaps.length / 2)];
+      const p90 = gaps[Math.min(gaps.length - 1, Math.floor(gaps.length * 0.9))];
+      const staleMs = Math.max(LIVE_STALE_AFTER_MS, Math.min(45000, Math.max(median * 3.5, p90 * 2)));
+      const disconnectedMs = Math.max(LIVE_DISCONNECTED_AFTER_MS, Math.min(180000, staleMs * 4));
+      return { staleMs, disconnectedMs };
+    }
+
+    function sampleGapThresholdMs(meter = state.activeMeter) {
+      return liveCadenceThresholds(meter).staleMs;
     }
 
     function shouldHideCurrentFlow(row, quality, meter = state.activeMeter) {
@@ -3420,6 +3462,11 @@
       const key = waveformKey(row);
       const activeKey = state.waveform.pendingKey || state.waveform.key;
       if (!force && activeKey === key && ["ready", "loading", "updating"].includes(state.waveform.status)) return;
+      if (!force && row.index === state.computed.length - 1) {
+        const now = Date.now();
+        if (now - (state.activeMeter.waveformAutoLoadedAtMs || 0) < WAVEFORM_AUTO_REFRESH_MS) return;
+        state.activeMeter.waveformAutoLoadedAtMs = now;
+      }
       clearTimeout(state.waveformTimer);
       state.waveformTimer = setTimeout(() => loadWaveformForRow(row, key, force), 120);
     }
@@ -3438,8 +3485,8 @@
       renderWaveformPanel();
       try {
         const now = Date.now();
-        if (force || !state.waveformCsvText || now - state.waveformCsvLoadedAtMs > 2500) {
-          const params = new URLSearchParams({ serial: row.serial || state.activeMeter.serial, t: String(now) });
+        if (force || !state.waveformCsvText || now - state.waveformCsvLoadedAtMs > WAVEFORM_CSV_CACHE_MS) {
+          const params = new URLSearchParams({ serial: row.serial || state.activeMeter.serial, limit: String(WAVEFORM_CSV_LIMIT), t: String(now) });
           if (appToken) params.set("token", appToken);
           const response = await fetch(`${WAVEFORM_CSV_PATH}?${params.toString()}`, { cache: "no-store" });
           if (!response.ok) throw new Error(`waveform CSV ${response.status}`);

@@ -23,6 +23,7 @@ from urllib.parse import parse_qs, urlparse
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
 MAX_METERS = 10
+DEFAULT_WAVEFORM_LIMIT = 240
 
 
 def iter_backlog(path: Path, *, serial: str | None, limit: int) -> list[dict]:
@@ -134,6 +135,27 @@ def compact_csv_by_serial(path: Path, serial: str) -> dict[str, int | str]:
     return {"path": str(path), "kept": kept, "removed": removed, "status": "ok"}
 
 
+def waveform_csv_tail(path: Path, *, serial: str | None, limit: int) -> bytes:
+    if not path.exists():
+        return b""
+    limit = max(1, min(limit, 2000))
+    rows: deque[str] = deque(maxlen=limit)
+    with path.open("r", encoding="utf-8", errors="ignore") as handle:
+        header = handle.readline()
+        if not header:
+            return b""
+        header_cols = header.rstrip("\r\n").split(",")
+        serial_idx = header_cols.index("serial") if "serial" in header_cols else -1
+        for line in handle:
+            if serial and serial_idx >= 0:
+                cols = line.split(",", serial_idx + 2)
+                if len(cols) <= serial_idx or cols[serial_idx] != serial:
+                    continue
+            rows.append(line)
+    body = header + "".join(rows)
+    return body.encode("utf-8")
+
+
 class LiveHandler(SimpleHTTPRequestHandler):
     server_version = "ZeroFlowPrototype/0.1"
 
@@ -175,7 +197,7 @@ class LiveHandler(SimpleHTTPRequestHandler):
             if not self.is_authorized(parsed.query):
                 self.unauthorized()
                 return
-            self.serve_waveform_csv()
+            self.serve_waveform_csv(parsed.query)
             return
         if parsed.path == "/status":
             if not self.is_authorized(parsed.query):
@@ -324,7 +346,7 @@ class LiveHandler(SimpleHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def serve_waveform_csv(self) -> None:
+    def serve_waveform_csv(self, query: str) -> None:
         path: Path = self.server.waveform_csv_path  # type: ignore[attr-defined]
         if not path.exists():
             body = b""
@@ -335,7 +357,13 @@ class LiveHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             self.wfile.write(body)
             return
-        body = path.read_bytes()
+        params = parse_qs(query)
+        serial = normalize_serial(params.get("serial", [""])[0]) or None
+        try:
+            limit = int(params.get("limit", [str(DEFAULT_WAVEFORM_LIMIT)])[0] or DEFAULT_WAVEFORM_LIMIT)
+        except ValueError:
+            limit = DEFAULT_WAVEFORM_LIMIT
+        body = waveform_csv_tail(path, serial=serial, limit=limit)
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "text/csv; charset=utf-8")
         self.send_header("Cache-Control", "no-store")
@@ -348,6 +376,7 @@ class LiveHandler(SimpleHTTPRequestHandler):
         serial = params.get("serial", [""])[0] or None
         backlog = int(params.get("backlog", ["1200"])[0] or 1200)
         poll_s = float(params.get("poll_s", ["0.5"])[0] or 0.5)
+        heartbeat_s = float(params.get("heartbeat_s", ["5"])[0] or 5)
         path: Path = self.server.log_path  # type: ignore[attr-defined]
 
         self.send_response(HTTPStatus.OK)
@@ -368,11 +397,19 @@ class LiveHandler(SimpleHTTPRequestHandler):
 
         try:
             send_event("status", {"status": "connected", "serial": serial, "log_path": str(path)})
+            last_status_at = time.time()
             for record in iter_backlog(path, serial=serial, limit=backlog):
                 send_event("frame", record, replay=True)
 
             offset = path.stat().st_size if path.exists() else 0
             while True:
+                now = time.time()
+                if now - last_status_at >= heartbeat_s:
+                    send_event(
+                        "status",
+                        {"status": "heartbeat", "serial": serial, "log_path": str(path), "server_time_ms": int(now * 1000)},
+                    )
+                    last_status_at = now
                 if not path.exists():
                     time.sleep(poll_s)
                     continue
@@ -428,9 +465,17 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+class LiveHTTPServer(ThreadingHTTPServer):
+    def handle_error(self, request: object, client_address: tuple[str, int]) -> None:
+        exc_type, _exc, _tb = sys.exc_info()
+        if exc_type in {BrokenPipeError, ConnectionResetError}:
+            return
+        super().handle_error(request, client_address)
+
+
 def main() -> None:
     args = build_parser().parse_args()
-    server = ThreadingHTTPServer((args.host, args.port), LiveHandler)
+    server = LiveHTTPServer((args.host, args.port), LiveHandler)
     server.log_path = args.log.resolve()  # type: ignore[attr-defined]
     server.events_log_path = args.events_log.resolve()  # type: ignore[attr-defined]
     server.waveform_csv_path = args.waveform_csv.resolve()  # type: ignore[attr-defined]
