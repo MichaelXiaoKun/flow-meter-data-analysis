@@ -1923,17 +1923,23 @@
       els.serialTabs.appendChild(fragment);
     }
 
-    function restoreLiveConnections() {
+    async function restoreLiveConnections() {
       if (autoConnectOverride === "0") {
-        setServerSubscriptions([], { silent: true });
+        render();
         return;
       }
-      let serials = [...state.connectedSerials].filter((serial) => state.meterOrder.includes(serial));
+      let serials = await getServerSubscriptions({ silent: true });
+      if (serials.length) {
+        serials.forEach((serial) => ensureMeter(serial));
+        state.activeSerial = serials.includes(state.activeSerial) ? state.activeSerial : serials[0];
+        state.connectedSerials = new Set(serials);
+        saveMeterList();
+        saveConnectedSerials();
+      } else {
+        serials = [...state.connectedSerials].filter((serial) => state.meterOrder.includes(serial));
+      }
       if (autoConnectOverride === "1" && !serials.length) serials = [state.activeSerial];
-      if (!serials.length) {
-        setServerSubscriptions([], { silent: true });
-        return;
-      }
+      if (!serials.length) return;
       setServerSubscriptions(serials, { silent: true });
       serials.forEach((serial) => {
         const meter = ensureMeter(serial);
@@ -2263,6 +2269,20 @@
 
     function syncServerSubscriptions(options = {}, serials = subscribedSerials()) {
       return setServerSubscriptions(serials, options);
+    }
+
+    async function getServerSubscriptions(options = {}) {
+      try {
+        const response = await fetch(metersEndpoint(), { cache: "no-store" });
+        const payload = await response.json().catch(() => ({}));
+        if (!response.ok || payload.ok === false) {
+          throw new Error(payload.error || `HTTP ${response.status}`);
+        }
+        return uniqueSerials((payload.serials || []).map(normalizeSerial)).slice(0, MAX_METERS);
+      } catch (error) {
+        if (!options.silent) showToast(t("subscriptionSyncFailed", { message: error.message }));
+        return [];
+      }
     }
 
     async function setServerSubscriptions(serials, options = {}) {
