@@ -25,12 +25,16 @@ ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
 MAX_METERS = 10
 DEFAULT_WAVEFORM_LIMIT = 240
-DEFAULT_SERIES_MAX_POINTS = 1600
 
 if str(REPO) not in sys.path:
     sys.path.insert(0, str(REPO))
 
-from meter_data_store import MeterDataQuery, parse_range_seconds  # noqa: E402
+from meter_data_store import (  # noqa: E402
+    MeterDataQuery,
+    SERIES_DEFAULT_MAX_POINTS,
+    SERIES_MAX_POINTS_CAP,
+    parse_range_seconds,
+)
 
 
 def iter_backlog(path: Path, *, serial: str | None, limit: int) -> list[dict]:
@@ -327,10 +331,10 @@ class LiveHandler(SimpleHTTPRequestHandler):
                 range_raw = params.get("range", [os.environ.get("SERIES_DEFAULT_RANGE", "24h")])[0]
                 range_seconds = parse_range_seconds(range_raw)
                 try:
-                    max_points = int(params.get("max_points", [os.environ.get("SERIES_MAX_POINTS", str(DEFAULT_SERIES_MAX_POINTS))])[0])
+                    max_points = int(params.get("max_points", [os.environ.get("SERIES_MAX_POINTS", str(SERIES_DEFAULT_MAX_POINTS))])[0])
                 except ValueError:
-                    max_points = DEFAULT_SERIES_MAX_POINTS
-                max_points = max(1, min(max_points, 5000))
+                    max_points = SERIES_DEFAULT_MAX_POINTS
+                max_points = max(1, min(max_points, SERIES_MAX_POINTS_CAP))
                 points = api.series(serial, range_seconds, max_points)
                 self.send_json(
                     {

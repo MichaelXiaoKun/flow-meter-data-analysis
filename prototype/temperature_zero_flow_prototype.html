@@ -1209,9 +1209,11 @@
     const LIVE_FRAME_FLUSH_MS = 150;
     const LIVE_PERF_LOG_MS = 5000;
     const LIVE_PANEL_RENDER_THROTTLE_MS = 1000;
-    const CHART_MAX_VISIBLE_POINTS = 1600;
     const HISTORY_SERIES_RANGE = "24h";
-    const HISTORY_SERIES_MAX_POINTS = CHART_MAX_VISIBLE_POINTS;
+    const DATA_POINTS_PER_24H = 24 * 1800;
+    const CHART_MAX_VISIBLE_POINTS = DATA_POINTS_PER_24H;
+    const LIVE_RETENTION_MS = 24 * 60 * 60 * 1000;
+    const HISTORY_SERIES_MAX_POINTS = DATA_POINTS_PER_24H;
     const SERIALS_KEY = "zeroFlowPrototypeSerials";
     const ACTIVE_SERIAL_KEY = "zeroFlowPrototypeActiveSerial";
     const AUTO_CONNECT_KEY = "zeroFlowPrototypeAutoConnect";
@@ -2934,18 +2936,43 @@
       sample.dataGap = sample.backendDataGap || sample.sourceGapMs > sampleGapThresholdMs(meter);
       sample.dataQuality = sample.dataGap ? "gap" : "ok";
       meter.samples.push(sample);
-      const shifted = meter.samples.length > CHART_MAX_VISIBLE_POINTS;
-      if (shifted) meter.samples.shift();
       if (sample.backendComputed) {
-        if (shifted && meter.computed.length) meter.computed.shift();
         meter.computed.push(computedRowFromBackendSample(sample, meter.samples.length - 1, currentConfig()));
-        while (meter.computed.length > meter.samples.length) meter.computed.shift();
-        reindexComputedRows(meter);
+        pruneMeterToRetentionWindow(meter);
         meter.chartRowsCache = {};
+      } else {
+        pruneMeterToRetentionWindow(meter);
       }
-      meter.selectedIndex = meter.samples.length - 1;
+      meter.selectedIndex = Math.max(0, (meter.computed.length || meter.samples.length) - 1);
       if (options.recompute !== false) recomputeMeter(meter);
       if (options.render !== false && isActiveMeter(meter)) render();
+      return true;
+    }
+
+    function pruneMeterToRetentionWindow(meter) {
+      if (!meter.samples.length) return false;
+      const latestMs = meter.samples[meter.samples.length - 1].timestamp.getTime();
+      const cutoffMs = latestMs - LIVE_RETENTION_MS;
+      const beforeSamples = meter.samples.length;
+      let firstKeepIndex = 0;
+      while (
+        firstKeepIndex < beforeSamples - 1 &&
+        meter.samples[firstKeepIndex].timestamp.getTime() < cutoffMs
+      ) {
+        firstKeepIndex += 1;
+      }
+      firstKeepIndex = Math.max(firstKeepIndex, beforeSamples - DATA_POINTS_PER_24H);
+      if (firstKeepIndex <= 0) return false;
+      meter.samples = meter.samples.slice(firstKeepIndex);
+      if (meter.computed.length) {
+        const firstSampleMs = meter.samples[0].timestamp.getTime();
+        meter.computed = meter.computed.filter((row, index) => (
+          index === meter.computed.length - 1 || row.timestamp.getTime() >= firstSampleMs
+        ));
+        while (meter.computed.length > meter.samples.length) meter.computed.shift();
+        reindexComputedRows(meter);
+      }
+      meter.chartRowsCache = {};
       return true;
     }
 

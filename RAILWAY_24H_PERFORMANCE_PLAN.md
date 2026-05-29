@@ -80,7 +80,7 @@ Phase 0 baseline record, captured locally on 2026-05-29:
 - Derived local average: 165.40 hours, 749.2 rows/hour, 12.49 rows/minute, projected 17,980 rows/24h for this single-meter sample.
 - Local event log sample: `mqtt_events.jsonl`, 1,053 rows, 1,070,801 bytes.
 - Local waveform CSV sample: `live_BB8100017587.csv`, 142 rows, 591,878 bytes, 1,024 sample columns per waveform row.
-- UI baseline before storage/API work: SSE backlog is 1,200 frames, live sample retention is 1,200 rows, live batch flush is 150 ms, live perf logging is every 5 s, and main chart visible points are capped at 1,600 after Phase 1 Step 2.
+- UI baseline after the 24h retention update: SSE backlog is 0 frames, live sample retention is a rolling 24h window capped at `24*1800 = 43,200` rows, live batch flush is 150 ms, live perf logging is every 5 s, and main chart visible points are capped at 43,200.
 - Analyzer hot path: `analyzer.analyze(...)` writes every analysis record to `--log-jsonl`; optional GUI waveform CSV writes happen through `--save-csv`; MQTT loop uses `client.loop(timeout=1.0)`.
 - Railway CPU/memory: not observable from this local workspace. The source of truth is Railway service metrics during a live run; record those numbers beside this baseline before Phase 2 rollout. The UI now logs enough local frame/render counters to compare before/after behavior in the browser console.
 
@@ -91,7 +91,7 @@ Phase 0 baseline record, captured locally on 2026-05-29:
 - [x] Flush queued frames every 100 to 200 ms.
 - [x] During a flush, append all queued samples first, then render once.
 - [x] Keep selected index on the latest frame only after the batch is applied.
-- [x] Add a maximum visible chart point target, default `1600`.
+- [x] Add a maximum visible chart point target, currently `24*1800 = 43,200` for the requested 24h view.
 - [x] Add a chart downsampling helper that maps full computed rows to visible rows.
 - [x] Use visible/downsampled rows for all main charts.
 - [x] Keep tooltip index mapping from visible rows back to original computed row indexes.
@@ -106,7 +106,7 @@ Phase 0 baseline record, captured locally on 2026-05-29:
 Progress note:
 
 - Step 1 implemented in `prototype/temperature_zero_flow_prototype.html`: per-meter pending live frame queue, 150 ms flush timer, batched recompute/render, stale timer cleanup, and console-only live perf counters.
-- Step 2 implemented in `prototype/temperature_zero_flow_prototype.html`: `CHART_MAX_VISIBLE_POINTS=1600`, cached chart-row downsampling, min/max preservation per chart bucket, and hover/selection mapping from visible rows back to original computed row indexes.
+- Step 2 implemented in `prototype/temperature_zero_flow_prototype.html`: `CHART_MAX_VISIBLE_POINTS=24*1800`, cached chart-row downsampling, min/max preservation per chart bucket, and hover/selection mapping from visible rows back to original computed row indexes.
 - Step 3 implemented in `prototype/temperature_zero_flow_prototype.html`: live-mode `renderMeterTabs()`, event list, and training panel are throttled to 1 s; waveform loading is no longer triggered by every full render and remains selection-driven.
 - Existing audit-table downsampling already limits displayed rows to 80 plus event/selected rows, preserving event and selected context while keeping DOM size bounded.
 - Step 4 verification completed with a local extraction test of the actual queue/flush functions: 10 queued frames scheduled 1 flush, appended 10 records, ran 1 recompute, and triggered 1 render.
@@ -130,7 +130,7 @@ Progress note:
 - [x] Batch database writes, defaulting to either 100 frames or 1 second per flush.
 - [x] Add a FastAPI app for the web API.
 - [x] Add `GET /api/meters/{serial}/latest`.
-- [x] Add `GET /api/meters/{serial}/series?range=24h&max_points=1600`.
+- [x] Add `GET /api/meters/{serial}/series?range=24h&max_points=43200`.
 - [x] Add `GET /api/meters/{serial}/events?range=24h`.
 - [x] Add `GET /api/waveforms/{waveform_id}`.
 - [x] Keep `/health` available for Railway health checks.
@@ -141,7 +141,7 @@ Phase 2 progress note:
 - Implemented `meter_data_store.py` with optional Postgres support behind `DATABASE_URL`, schema creation, indexed `meter_frames` / `meter_events` / `waveforms`, gzip-compressed waveform samples, and 100-frame / 1-second write flushing.
 - `mqtt_stream_analyzer.py` now writes frame summaries, events, and waveform records to the store while preserving existing JSONL/CSV outputs.
 - `prototype/live_server.py` now exposes the planned `/api/meters/{serial}/latest`, `/series`, `/events`, and `/api/waveforms/{waveform_id}` endpoints. They read from Postgres when `DATABASE_URL` is set and fall back to the existing JSONL logs otherwise.
-- The browser now prefetches `/api/meters/{serial}/series?range=24h&max_points=1600` before opening a live SSE stream and keeps the result as a 24h history cache/status preview. The main charts still use live computed rows until backend computed fields fully replace the frontend zero tracker.
+- The browser now prefetches `/api/meters/{serial}/series?range=24h&max_points=43200` before opening a live SSE stream and keeps the result as a 24h history cache/status preview. The main charts use backend-computed fields when present and still support frontend computation as a fallback.
 - Added standalone `web_api.py` FastAPI app with the same `/health`, `/api/meters/{serial}/latest`, `/series`, `/events`, and `/api/waveforms/{waveform_id}` contract. The current Railway entrypoint still uses the stdlib live server while the FastAPI app is tested separately with `uvicorn web_api:app`.
 
 ### Phase 3: Backend Incremental Computation
@@ -279,14 +279,14 @@ Expected response shape:
 }
 ```
 
-### `GET /api/meters/{serial}/series?range=24h&max_points=1600`
+### `GET /api/meters/{serial}/series?range=24h&max_points=43200`
 
 Returns an aggregated 24-hour chart series.
 
 Rules:
 
 - Default `range` is `24h`.
-- Default `max_points` is `1600`.
+- Default `max_points` is `43,200` (`24*1800`).
 - Clamp `max_points` to a safe server maximum.
 - Return no more than `max_points` buckets.
 - Each bucket should include `timestamp`, `avg`, `min`, `max`, and `latest` values for charted fields.
@@ -298,7 +298,7 @@ Expected response shape:
   "ok": true,
   "serial": "BB8100017587",
   "range": "24h",
-  "max_points": 1600,
+  "max_points": 43200,
   "points": []
 }
 ```
@@ -374,7 +374,7 @@ Existing variables to keep:
 New variables to add:
 
 - `DATABASE_URL`
-- `SERIES_MAX_POINTS`, default `1600`
+- `SERIES_MAX_POINTS`, default `43200`
 - `SERIES_DEFAULT_RANGE`, default `24h`
 - `DB_WRITE_BATCH_SIZE`, default `100`
 - `DB_WRITE_FLUSH_MS`, default `1000`
@@ -387,7 +387,7 @@ New variables to add:
 - [ ] Generate 24 hours of simulated frames for one serial.
 - [ ] Verify `meter_frames` insert throughput is acceptable.
 - [ ] Verify `/api/meters/{serial}/latest` returns the newest frame.
-- [ ] Verify `/api/meters/{serial}/series?range=24h&max_points=1600` returns no more than 1600 points.
+- [ ] Verify `/api/meters/{serial}/series?range=24h&max_points=43200` returns no more than 43,200 points.
 - [ ] Verify `/api/meters/{serial}/events?range=24h` returns expected event intervals.
 - [ ] Verify `/api/waveforms/{waveform_id}` returns exactly one waveform payload.
 - [ ] Verify API behavior when no data exists for a serial.
@@ -424,7 +424,7 @@ New variables to add:
 
 - Plan file path: `RAILWAY_24H_PERFORMANCE_PLAN.md`.
 - v1 storage: Railway Postgres.
-- v1 chart max points: `1600`.
+- v1 chart max points: `43,200` (`24*1800`).
 - v1 default history range: `24h`.
 - v1 waveform loading: on row selection only.
 - v1 GPU role: optional CNN scoring acceleration.

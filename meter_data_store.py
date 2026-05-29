@@ -19,6 +19,9 @@ from pathlib import Path
 from typing import Any
 
 
+SERIES_DEFAULT_MAX_POINTS = 24 * 1800
+SERIES_MAX_POINTS_CAP = 24 * 1800
+
 SERIES_FIELDS = [
     "raw_fs_mps",
     "raw_fr_m3h",
@@ -157,7 +160,7 @@ def waveform_summary(serial: str | None, timestamp: Any, samples: list[float]) -
 def aggregate_series(rows: list[dict[str, Any]], max_points: int) -> list[dict[str, Any]]:
     if not rows:
         return []
-    max_points = max(1, min(int(max_points or 1600), 5000))
+    max_points = max(1, min(int(max_points or SERIES_DEFAULT_MAX_POINTS), SERIES_MAX_POINTS_CAP))
     if len(rows) <= max_points:
         return [series_point_from_rows([row]) for row in rows]
     buckets: list[dict[str, Any]] = []
