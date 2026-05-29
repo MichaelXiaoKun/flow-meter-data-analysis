@@ -1074,6 +1074,7 @@
             <span>用户看到 GPM</span>
             <span class="legend">
               <span><i style="background:#b91c1c"></i>displayed GPM</span>
+              <span><i style="background:#ea580c"></i>&gt; 0 GPM</span>
             </span>
           </div>
           <canvas id="displayChart" class="compact-canvas" width="960" height="220"></canvas>
@@ -1182,12 +1183,15 @@
     const SERIALS_KEY = "zeroFlowPrototypeSerials";
     const ACTIVE_SERIAL_KEY = "zeroFlowPrototypeActiveSerial";
     const AUTO_CONNECT_KEY = "zeroFlowPrototypeAutoConnect";
+    const CONNECTED_SERIALS_KEY = "zeroFlowPrototypeConnectedSerials";
     const CLEAR_WATERMARKS_KEY = "zeroFlowPrototypeClearWatermarks";
+    const DISPLAY_GPM_MIN_Y_MAX = 1;
 
     const state = {
       activeSerial: DEFAULT_SERIAL,
       meterOrder: [],
       meters: {},
+      connectedSerials: loadConnectedSerials(),
       clearWatermarks: loadClearWatermarks(),
       labels: loadLabels(),
       hover: null,
@@ -1370,6 +1374,7 @@
       phantom: "#b91c1c",
       event: "#2563eb",
       zeroProb: "#0f766e",
+      displayPositive: "#ea580c",
       grid: "#e5eaf0",
       text: "#526170",
       band: "rgba(185, 28, 28, 0.08)",
@@ -1387,7 +1392,7 @@
     const appTokenFromUrl = urlParams.get("token") || "";
     if (appTokenFromUrl) localStorage.setItem(APP_TOKEN_KEY, appTokenFromUrl);
     const appToken = appTokenFromUrl || localStorage.getItem(APP_TOKEN_KEY) || "";
-    const autoConnectLive = urlParams.get("autoconnect") !== "0" && localStorage.getItem(AUTO_CONNECT_KEY) !== "0";
+    const autoConnectOverride = urlParams.get("autoconnect");
 
     const I18N = {
       zh: {
@@ -1672,6 +1677,36 @@
       }
     }
 
+    function loadConnectedSerials() {
+      try {
+        const parsed = JSON.parse(localStorage.getItem(CONNECTED_SERIALS_KEY) || "[]");
+        if (Array.isArray(parsed)) {
+          return new Set(parsed.map(normalizeSerial).filter(Boolean));
+        }
+      } catch {
+        // Fall through to legacy flag handling.
+      }
+      if (localStorage.getItem(AUTO_CONNECT_KEY) === "1") {
+        return new Set(loadSerialList());
+      }
+      return new Set();
+    }
+
+    function saveConnectedSerials() {
+      const serials = [...state.connectedSerials].filter((serial) => state.meterOrder.includes(serial));
+      state.connectedSerials = new Set(serials);
+      localStorage.setItem(CONNECTED_SERIALS_KEY, JSON.stringify(serials));
+      localStorage.setItem(AUTO_CONNECT_KEY, serials.length ? "1" : "0");
+    }
+
+    function rememberLiveConnection(serial, connected) {
+      const normalized = normalizeSerial(serial);
+      if (!normalized) return;
+      if (connected) state.connectedSerials.add(normalized);
+      else state.connectedSerials.delete(normalized);
+      saveConnectedSerials();
+    }
+
     function saveClearWatermarks() {
       localStorage.setItem(CLEAR_WATERMARKS_KEY, JSON.stringify(state.clearWatermarks));
     }
@@ -1835,6 +1870,7 @@
       if (!normalized || state.meterOrder.length <= 1) return;
       const meter = state.meters[normalized];
       if (meter?.liveSource) meter.liveSource.close();
+      rememberLiveConnection(normalized, false);
       state.meterOrder = state.meterOrder.filter((item) => item !== normalized);
       delete state.meters[normalized];
       if (state.activeSerial === normalized) {
@@ -1880,8 +1916,11 @@
     }
 
     function restoreLiveConnections() {
-      if (!autoConnectLive) return;
-      state.meterOrder.forEach((serial) => {
+      if (autoConnectOverride === "0") return;
+      let serials = [...state.connectedSerials].filter((serial) => state.meterOrder.includes(serial));
+      if (autoConnectOverride === "1" && !serials.length) serials = [state.activeSerial];
+      if (!serials.length) return;
+      serials.forEach((serial) => {
         const meter = ensureMeter(serial);
         startLiveForMeter(meter, { silent: true });
       });
@@ -2031,7 +2070,7 @@
     }
 
     function startLiveForMeter(meter, options = {}) {
-      stopLive(meter, { render: false });
+      stopLive(meter, { render: false, remember: false });
       const serial = meter.serial;
       const endpoint = liveEndpoint(serial);
       meter.samples = [];
@@ -2044,6 +2083,7 @@
       meter.lastQualityRenderKey = "";
       meter.liveSource = new EventSource(endpoint);
       meter.liveConnected = true;
+      if (options.remember !== false) rememberLiveConnection(serial, true);
       if (isActiveMeter(meter)) els.liveSource.textContent = endpoint;
       meter.liveSource.onopen = () => {
         meter.liveConnected = true;
@@ -2079,6 +2119,7 @@
       meter.liveSource = null;
       meter.liveConnected = false;
       meter.liveErrorAtMs = Date.now();
+      if (options.remember !== false) rememberLiveConnection(meter.serial, false);
       if (options.render !== false) {
         if (isActiveMeter(meter)) renderTraining();
         renderMeterTabs();
@@ -3145,12 +3186,13 @@
     function drawDisplayChart(ctx, w, h) {
       const rows = state.computed;
       if (!rows.length) return;
-      const values = rows.map((row) => row.displayedGpm);
-      const yRange = paddedRange(values.concat([0]));
+      const yRange = displayGpmRange(rows);
       drawAxes(ctx, w, h);
+      drawYAxisScale(ctx, w, h, yRange, { unit: "GPM", decimals: 2 });
       drawPhantomBands(ctx, rows, w, h);
       line(ctx, rows.map((row, i) => [i, row.displayedGpm]), w, h, yRange, color.published, 2.2);
       drawZeroLine(ctx, w, h, yRange);
+      drawPositiveGpmMarkers(ctx, rows, w, h, yRange);
       drawSelected(ctx, w, h, rows.length);
       drawTimeHover(ctx, w, h, rows.length, [
         { value: (row) => row.displayedGpm, range: yRange, color: color.published },
@@ -3355,6 +3397,29 @@
       ctx.stroke();
     }
 
+    function drawYAxisScale(ctx, w, h, yRange, options = {}) {
+      const pad = chartPad();
+      const { unit = "", decimals = 2, ticks = 4 } = options;
+      const [yMin, yMax] = yRange;
+      ctx.save();
+      ctx.fillStyle = "#64748b";
+      ctx.font = "11px system-ui, sans-serif";
+      ctx.textAlign = "right";
+      ctx.textBaseline = "middle";
+      for (let i = 0; i <= ticks; i += 1) {
+        const ratio = i / ticks;
+        const value = yMax - (yMax - yMin) * ratio;
+        const y = pad.top + (h - pad.top - pad.bottom) * ratio;
+        ctx.fillText(value.toFixed(decimals), pad.left - 8, y);
+      }
+      if (unit) {
+        ctx.textAlign = "left";
+        ctx.textBaseline = "top";
+        ctx.fillText(unit, pad.left, 2);
+      }
+      ctx.restore();
+    }
+
     function line(ctx, points, w, h, yRange, stroke, width) {
       if (points.length < 2) return;
       const pad = chartPad();
@@ -3396,6 +3461,33 @@
       ctx.lineTo(w - pad.right, y);
       ctx.stroke();
       ctx.setLineDash([]);
+    }
+
+    function drawPositiveGpmMarkers(ctx, rows, w, h, yRange) {
+      if (!rows.some((row) => row.displayedGpm > 0)) return;
+      const pad = chartPad();
+      const xMax = Math.max(rows.length - 1, 1);
+      const baseY = yForValue(0, yRange, h);
+      ctx.save();
+      ctx.strokeStyle = color.displayPositive;
+      ctx.fillStyle = color.displayPositive;
+      rows.forEach((row, i) => {
+        if (!(row.displayedGpm > 0)) return;
+        const x = pad.left + (w - pad.left - pad.right) * (i / xMax);
+        const y = yForValue(row.displayedGpm, yRange, h);
+        const markerTop = Math.min(y, baseY - 8);
+        ctx.globalAlpha = 0.35;
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(x, baseY);
+        ctx.lineTo(x, markerTop);
+        ctx.stroke();
+        ctx.globalAlpha = 1;
+        ctx.beginPath();
+        ctx.arc(x, y, 3.2, 0, Math.PI * 2);
+        ctx.fill();
+      });
+      ctx.restore();
     }
 
     function drawHorizontalValue(ctx, w, h, yRange, value, stroke) {
@@ -3510,7 +3602,7 @@
     }
 
     function chartPad() {
-      return { left: 28, right: 12, top: 12, bottom: 18 };
+      return { left: 52, right: 12, top: 16, bottom: 18 };
     }
 
     function range(rows, key) {
@@ -3533,6 +3625,14 @@
       }
       const pad = (max - min) * 0.12;
       return [min - pad, max + pad];
+    }
+
+    function displayGpmRange(rows) {
+      const max = Math.max(0, ...rows.map((row) => Number.isFinite(row.displayedGpm) ? row.displayedGpm : 0));
+      if (max <= DISPLAY_GPM_MIN_Y_MAX) return [0, DISPLAY_GPM_MIN_Y_MAX];
+      const paddedMax = max * 1.12;
+      const rounded = Math.ceil(paddedMax * 10) / 10;
+      return [0, Math.max(DISPLAY_GPM_MIN_Y_MAX, rounded)];
     }
 
     function downsampleForTable(rows, limit) {
