@@ -1178,8 +1178,10 @@
   <script>
     const DEFAULT_SERIAL = "BB8100017587";
     const MAX_METERS = 10;
+    const LIVE_BACKLOG_LIMIT = 1200;
     const SERIALS_KEY = "zeroFlowPrototypeSerials";
     const ACTIVE_SERIAL_KEY = "zeroFlowPrototypeActiveSerial";
+    const AUTO_CONNECT_KEY = "zeroFlowPrototypeAutoConnect";
 
     const state = {
       activeSerial: DEFAULT_SERIAL,
@@ -1383,6 +1385,7 @@
     const appTokenFromUrl = urlParams.get("token") || "";
     if (appTokenFromUrl) localStorage.setItem(APP_TOKEN_KEY, appTokenFromUrl);
     const appToken = appTokenFromUrl || localStorage.getItem(APP_TOKEN_KEY) || "";
+    const autoConnectLive = urlParams.get("autoconnect") !== "0" && localStorage.getItem(AUTO_CONNECT_KEY) !== "0";
 
     const I18N = {
       zh: {
@@ -1699,6 +1702,7 @@
       recompute();
       window.addEventListener("resize", resizeAllCharts);
       window.setInterval(refreshLiveQuality, 1000);
+      window.setTimeout(restoreLiveConnections, 80);
       resizeAllCharts();
     }
 
@@ -1847,6 +1851,15 @@
       els.serialTabs.appendChild(fragment);
     }
 
+    function restoreLiveConnections() {
+      if (!autoConnectLive) return;
+      state.meterOrder.forEach((serial) => {
+        const meter = ensureMeter(serial);
+        startLiveForMeter(meter, { silent: true });
+      });
+      render();
+    }
+
     function t(key, values = {}) {
       const dict = I18N[state.lang] || I18N.zh;
       const template = dict[key] ?? I18N.zh[key] ?? key;
@@ -1986,7 +1999,11 @@
         saveMeterList();
       }
       const meter = state.activeMeter;
-      stopLive(meter);
+      startLiveForMeter(meter);
+    }
+
+    function startLiveForMeter(meter, options = {}) {
+      stopLive(meter, { render: false });
       const serial = meter.serial;
       const endpoint = liveEndpoint(serial);
       meter.samples = [];
@@ -1999,18 +2016,18 @@
       meter.lastQualityRenderKey = "";
       meter.liveSource = new EventSource(endpoint);
       meter.liveConnected = true;
-      els.liveSource.textContent = endpoint;
+      if (isActiveMeter(meter)) els.liveSource.textContent = endpoint;
       meter.liveSource.onopen = () => {
         meter.liveConnected = true;
         meter.liveErrorAtMs = null;
-        showToast(t("toastConnected", { serial }));
+        if (!options.silent) showToast(t("toastConnected", { serial }));
         if (isActiveMeter(meter)) render();
         else renderMeterTabs();
       };
       meter.liveSource.onerror = () => {
         meter.liveConnected = false;
         meter.liveErrorAtMs = Date.now();
-        showToast(t("toastInterrupted"));
+        if (!options.silent) showToast(t("toastInterrupted"));
         if (isActiveMeter(meter)) render();
         else renderMeterTabs();
       };
@@ -2027,15 +2044,17 @@
       render();
     }
 
-    function stopLive(meter = state.activeMeter) {
+    function stopLive(meter = state.activeMeter, options = {}) {
       if (meter.liveSource) {
         meter.liveSource.close();
       }
       meter.liveSource = null;
       meter.liveConnected = false;
       meter.liveErrorAtMs = Date.now();
-      if (isActiveMeter(meter)) renderTraining();
-      renderMeterTabs();
+      if (options.render !== false) {
+        if (isActiveMeter(meter)) renderTraining();
+        renderMeterTabs();
+      }
     }
 
     function clearUiData() {
@@ -2078,7 +2097,7 @@
     }
 
     function liveEndpoint(serial) {
-      const params = new URLSearchParams({ serial, backlog: "300" });
+      const params = new URLSearchParams({ serial, backlog: String(LIVE_BACKLOG_LIMIT) });
       if (appToken) params.set("token", appToken);
       if (window.location.protocol === "file:") {
         return `http://127.0.0.1:8765/stream?${params}`;

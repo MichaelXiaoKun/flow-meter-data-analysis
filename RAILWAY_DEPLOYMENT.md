@@ -76,6 +76,11 @@ Files written there:
 Without a volume, these files are written to `/tmp/flow-meter-data` and may be
 lost on restart.
 
+The browser UI auto-reconnects on page load for saved serial numbers. It asks
+`/stream` for the latest 1200 analysis frames, then continues with live SSE
+frames. A browser refresh only restarts the browser connection; the Railway
+analyzer process keeps ingesting MQTT and writing the JSONL/CSV files.
+
 ## Useful endpoints
 
 - `/temperature_zero_flow_prototype.html` - main UI.

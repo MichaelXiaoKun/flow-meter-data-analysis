@@ -157,7 +157,7 @@ class LiveHandler(SimpleHTTPRequestHandler):
     def stream(self, query: str) -> None:
         params = parse_qs(query)
         serial = params.get("serial", [""])[0] or None
-        backlog = int(params.get("backlog", ["300"])[0] or 300)
+        backlog = int(params.get("backlog", ["1200"])[0] or 1200)
         poll_s = float(params.get("poll_s", ["0.5"])[0] or 0.5)
         path: Path = self.server.log_path  # type: ignore[attr-defined]
 
