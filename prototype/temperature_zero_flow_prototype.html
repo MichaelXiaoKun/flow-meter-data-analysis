@@ -1401,7 +1401,7 @@
         appTitle: "温度零点追踪实验台",
         subtitle: "本地测试 phantom flow、温度漂移、用户确认标签和客户通知文案",
         connectLive: "连接实时",
-        disconnect: "本机断开",
+        disconnect: "断开共享",
         clearData: "清理数据",
         meters: "流量计",
         addSerialPlaceholder: "添加 serial",
@@ -1521,7 +1521,7 @@
         appTitle: "Temperature Zero Tracking Lab",
         subtitle: "Local prototype for phantom flow, temperature drift, user labels, and customer messaging",
         connectLive: "Connect live",
-        disconnect: "Disconnect here",
+        disconnect: "Disconnect shared",
         clearData: "Clear data",
         meters: "Meters",
         addSerialPlaceholder: "Add serial",
@@ -1790,7 +1790,7 @@
 
       els.recomputeBtn.addEventListener("click", recompute);
       els.liveBtn.addEventListener("click", startLive);
-      els.stopLiveBtn.addEventListener("click", () => stopLiveLocal());
+      els.stopLiveBtn.addEventListener("click", () => stopLive());
       els.clearDataBtn.addEventListener("click", () => clearUiData());
       els.addSerialBtn.addEventListener("click", addSerialFromInput);
       els.serialInput.addEventListener("keydown", (event) => {
@@ -1928,14 +1928,21 @@
         render();
         return;
       }
-      let serials = await getServerSubscriptions({ silent: true });
+      const serverSubscriptions = await getServerSubscriptions({ silent: true });
+      let serials = serverSubscriptions.serials;
+      if (serverSubscriptions.reachable && !serials.length) {
+        state.connectedSerials = new Set();
+        saveConnectedSerials();
+        render();
+        return;
+      }
       if (serials.length) {
         serials.forEach((serial) => ensureMeter(serial));
         state.activeSerial = serials.includes(state.activeSerial) ? state.activeSerial : serials[0];
         state.connectedSerials = new Set(serials);
         saveMeterList();
         saveConnectedSerials();
-      } else {
+      } else if (!serverSubscriptions.reachable) {
         serials = [...state.connectedSerials].filter((serial) => state.meterOrder.includes(serial));
       }
       if (autoConnectOverride === "1" && !serials.length) serials = [state.activeSerial];
@@ -2163,10 +2170,6 @@
       }
     }
 
-    function stopLiveLocal(meter = state.activeMeter) {
-      stopLive(meter, { sync: false });
-    }
-
     async function clearUiData() {
       const meter = state.activeMeter;
       els.clearDataBtn.disabled = true;
@@ -2282,10 +2285,13 @@
         if (!response.ok || payload.ok === false) {
           throw new Error(payload.error || `HTTP ${response.status}`);
         }
-        return uniqueSerials((payload.serials || []).map(normalizeSerial)).slice(0, MAX_METERS);
+        return {
+          reachable: true,
+          serials: uniqueSerials((payload.serials || []).map(normalizeSerial)).slice(0, MAX_METERS),
+        };
       } catch (error) {
         if (!options.silent) showToast(t("subscriptionSyncFailed", { message: error.message }));
-        return [];
+        return { reachable: false, serials: [] };
       }
     }
 
