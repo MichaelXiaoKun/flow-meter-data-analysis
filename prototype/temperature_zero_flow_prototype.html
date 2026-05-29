@@ -490,6 +490,10 @@
       line-height: 1.25;
     }
 
+    .kpi[data-kpi] {
+      cursor: help;
+    }
+
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -753,6 +757,10 @@
     }
 
     .state-review {
+      color: var(--amber);
+    }
+
+    .state-signal {
       color: var(--amber);
     }
 
@@ -1045,7 +1053,7 @@
             <strong id="kpiCorrected">--</strong>
             <small id="kpiCorrectedM3h">--</small>
           </div>
-          <div class="kpi">
+          <div class="kpi" data-kpi="user-visible">
             <span>用户看到</span>
             <strong id="kpiPublished">--</strong>
             <small id="kpiPublishedM3h">--</small>
@@ -1557,18 +1565,21 @@
         readingTinyFalseFlow: "微小假流量",
         readingCorrectedFalseFlow: "已修正假流量",
         readingNeedsConfirmation: "需要确认",
+        readingSignalDegraded: "声学信号弱",
         readingRealFlow: "真实用水",
         readingDataGap: "数据缺口",
         actionIgnoreNoise: "忽略噪声",
         actionDisplayZero: "用户显示 0 GPM",
         actionAutoCorrectZero: "自动修正为 0",
         actionAskUser: "让用户确认",
+        actionCheckSignal: "检查安装/声路",
         actionDisplayFlow: "显示流量",
         actionFreeze: "冻结判断",
         reasonStableZero: "接近零点且稳定",
         reasonTinyResidual: "只有微小残差，没有真实用水证据",
         reasonCorrectedFalse: "温漂/零点补偿已被保护",
         reasonConflict: "假流和真实用水证据冲突",
+        reasonSignalDegraded: "波形显示弱信号或声路丢失，先不要按真实用水确认",
         reasonEventStrong: "真实用水证据较强",
         reasonDataGap: "数据缺口或连接状态不可靠",
         readingLine: "读数类型",
@@ -1772,18 +1783,21 @@
         readingTinyFalseFlow: "Tiny false flow",
         readingCorrectedFalseFlow: "Corrected false flow",
         readingNeedsConfirmation: "Needs confirmation",
+        readingSignalDegraded: "Signal degraded",
         readingRealFlow: "Real flow",
         readingDataGap: "Data gap",
         actionIgnoreNoise: "Ignore noise",
         actionDisplayZero: "Display 0 GPM",
         actionAutoCorrectZero: "Auto-correct to 0",
         actionAskUser: "Ask user to confirm",
+        actionCheckSignal: "Check signal path",
         actionDisplayFlow: "Display flow",
         actionFreeze: "Freeze decisions",
         reasonStableZero: "Near zero and stable",
         reasonTinyResidual: "Only a tiny residual; no real-flow evidence",
         reasonCorrectedFalse: "Temperature/zero correction is guarded",
         reasonConflict: "False-flow and real-flow evidence conflict",
+        reasonSignalDegraded: "Waveform indicates weak or lost acoustic path; do not treat this as user-confirmed flow yet",
         reasonEventStrong: "Real-flow evidence is strong",
         reasonDataGap: "Data gap or connection state is unreliable",
         readingLine: "Reading type",
@@ -2014,6 +2028,7 @@
       setupMeters();
       bindEvents();
       bindChartHover();
+      bindKpiHover();
       applyLanguage();
       recompute();
       window.addEventListener("resize", resizeAllCharts);
@@ -2080,6 +2095,21 @@
             selectIndex(state.hover.index);
           }
         });
+      });
+    }
+
+    function bindKpiHover() {
+      document.querySelectorAll(".kpi[data-kpi]").forEach((el) => {
+        el.addEventListener("mousemove", (event) => {
+          const row = selectedRow();
+          const html = kpiTooltipHtml(el.dataset.kpi, row);
+          if (!html) {
+            hideChartTooltip();
+            return;
+          }
+          showChartTooltip(html, event.clientX, event.clientY);
+        });
+        el.addEventListener("mouseleave", hideChartTooltip);
       });
     }
 
@@ -2862,8 +2892,12 @@
         } else {
           recomputeMeter(meter, currentConfig(), { renderTabs: false });
         }
-        if (isActiveMeter(meter)) render();
-        else renderMeterTabsThrottled();
+        if (isActiveMeter(meter)) {
+          render();
+          scheduleWaveformLoad(false);
+        } else {
+          renderMeterTabsThrottled();
+        }
       }
       logLivePerfCounters(meter);
     }
@@ -3062,6 +3096,7 @@
         analyzerScore: finiteNumber(record.score),
         analyzerLabel: record.label || "",
         pipeState: record.pipe_state || "",
+        rawPipeState: record.raw_pipe_state || "",
         healthScore: finiteNumber(record.flow_meter_health?.score),
         measurementConfidence: finiteNumber(record.measurement_confidence),
         training: record.self_training || null,
@@ -3405,6 +3440,14 @@
         return;
       }
       const latest = state.computed[state.computed.length - 1];
+      if (latest) {
+        const latestDecision = readingDecision(latest, quality);
+        if (["needs_confirmation", "signal_degraded"].includes(latestDecision.key)) {
+          els.runStatus.textContent = "Review";
+          els.runStatus.className = "status-pill amber";
+          return;
+        }
+      }
       if (!state.events.length && latest?.autoCorrected) {
         els.runStatus.textContent = "Auto-correct";
         els.runStatus.className = "status-pill amber";
@@ -3606,6 +3649,7 @@
       const displayedPositive = row.displayedGpm >= DISPLAY_GPM_NOISE_FLOOR;
       const tinyResidual = maxGpm > 0.0005 && maxGpm < DISPLAY_GPM_ZERO_HOLD && row.eventProbability < 0.35;
       const eventStrong = row.userLabel === "event" || (row.stateName === "event_flow" && displayedPositive);
+      const signalDegraded = row.userLabel !== "event" && isAcousticSignalDegraded(row);
       const conflict = row.userLabel !== "zero" && row.phantomProbability >= 0.45 && row.eventProbability >= 0.35;
       const correctedFalse = row.correctionOverrun ||
         (row.autoCorrected && maxGpm >= DISPLAY_GPM_ZERO_HOLD) ||
@@ -3618,6 +3662,15 @@
           action: t("actionDisplayFlow"),
           reason: t("reasonEventStrong"),
           className: "state-event",
+        };
+      }
+      if (signalDegraded) {
+        return {
+          key: "signal_degraded",
+          label: t("readingSignalDegraded"),
+          action: t("actionCheckSignal"),
+          reason: t("reasonSignalDegraded"),
+          className: "state-signal",
         };
       }
       if (conflict || (displayedPositive && row.eventProbability >= 0.35)) {
@@ -3654,6 +3707,16 @@
         reason: t("reasonStableZero"),
         className: "state-zero",
       };
+    }
+
+    function isAcousticSignalDegraded(row) {
+      const acousticState = [
+        row.pipeState,
+        row.rawPipeState,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return acousticState.includes("weak_signal") ||
+        acousticState.includes("empty_or_lost_acoustic_path") ||
+        acousticState.includes("lost_acoustic_path");
     }
 
     function readingDecisionLines(row, quality = currentDataQuality()) {
@@ -4476,6 +4539,22 @@
       return tooltipHtml(formatTime(row.timestamp), [[t("tooltipValue"), "--"]]);
     }
 
+    function kpiTooltipHtml(kind, row) {
+      if (!row) return null;
+      if (kind === "user-visible") {
+        return tooltipHtml(t("userGpm"), [
+          [t("time"), formatTime(row.timestamp)],
+          [t("tooltipDisplayed"), `${row.displayedGpm.toFixed(3)} GPM`],
+          [t("tooltipDisplayedM3h"), `${row.displayedFrM3h.toFixed(3)} m3/h`],
+          [t("tooltipCorrected"), `${row.correctedGpm.toFixed(3)} GPM`],
+          [t("tooltipPublished"), `${row.publishedGpm.toFixed(3)} GPM`],
+          [t("tooltipDisplayGuard"), row.displaySuppressionReason || "--"],
+          [t("tooltipReading"), readingDecision(row).label],
+        ]);
+      }
+      return null;
+    }
+
     function tooltipHtml(title, rows) {
       return `<strong>${escapeHtml(title)}</strong>${rows.map(([label, value]) => `<div>${escapeHtml(label)}: ${escapeHtml(String(value))}</div>`).join("")}`;
     }
@@ -4894,7 +4973,12 @@
     }
 
     function formatTime(date) {
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return date.toLocaleString([], {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
 
     function numberOr(value, fallback) {
