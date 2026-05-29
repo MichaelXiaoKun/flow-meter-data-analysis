@@ -26,15 +26,29 @@ https://<your-service>.up.railway.app/temperature_zero_flow_prototype.html
 Set these in Railway service variables:
 
 ```bash
-METER_SERIAL=BB8100017587
 MQTT_BROKER=mqtt-prod.bluebot.com
 MQTT_PORT=1883
-MQTT_SIG_TOPIC=meter/sig/{serial}
-MQTT_PUB_TOPIC=meter/pub/{serial}
+MQTT_CLIENT_ID=lens_data_{uuid}
+MQTT_SIG_TOPIC=meter/sig/+
+MQTT_PUB_TOPIC=meter/pub/+
 MQTT_PROCESSED_TOPIC=
 START_MQTT_ANALYZER=1
 SELF_TRAIN=1
 ENABLE_CNN=0
+```
+
+With the wildcard topics above, the backend ingests every meter allowed by the
+MQTT credentials. The browser UI remains the device selector: add up to 10
+serial numbers in the left rail, and each tab filters the shared live stream to
+that serial. No redeploy is needed when adding or removing UI tabs.
+
+If your broker account cannot subscribe to wildcard topics, you can fall back
+to one fixed meter by setting:
+
+```bash
+METER_SERIAL=BB8100017587
+MQTT_SIG_TOPIC=meter/sig/{serial}
+MQTT_PUB_TOPIC=meter/pub/{serial}
 ```
 
 For a public Railway domain, set a read token:
@@ -70,7 +84,7 @@ Files written there:
 
 - `live_mqtt_analysis.jsonl`
 - `live_mqtt_events.jsonl`
-- `live_<serial>_realtime.csv`
+- `live_mqtt_waveforms.csv`
 - `live_adaptive_meter_model.json`
 
 Without a volume, these files are written to `/tmp/flow-meter-data` and may be

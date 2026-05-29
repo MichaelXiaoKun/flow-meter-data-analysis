@@ -47,7 +47,7 @@ def topic_env(name: str, default: str, serial: str) -> str:
 def analyzer_command(data: Path, serial: str) -> list[str]:
     log_path = env_path("ANALYSIS_LOG_PATH", data / "live_mqtt_analysis.jsonl")
     events_path = env_path("EVENTS_LOG_PATH", data / "live_mqtt_events.jsonl")
-    csv_path = env_path("WAVEFORM_CSV_PATH", data / f"live_{serial}_realtime.csv")
+    csv_path = env_path("WAVEFORM_CSV_PATH", data / "live_mqtt_waveforms.csv")
     adapted_model = env_path("ADAPTED_MODEL_PATH", data / "live_adaptive_meter_model.json")
     model_default = adapted_model if adapted_model.exists() else ROOT / "oneclass_meter_model_combined.json"
     model_path = env_path("METER_MODEL_PATH", model_default)
@@ -63,11 +63,11 @@ def analyzer_command(data: Path, serial: str) -> list[str]:
         "--port",
         os.environ.get("MQTT_PORT", "1883"),
         "--client-id",
-        os.environ.get("MQTT_CLIENT_ID", "railway_temp_drift_{uuid}"),
+        os.environ.get("MQTT_CLIENT_ID", "lens_data_{uuid}"),
         "--sig-topic",
-        topic_env("MQTT_SIG_TOPIC", "meter/sig/{serial}", serial),
+        topic_env("MQTT_SIG_TOPIC", "meter/sig/+", serial),
         "--pub-topic",
-        topic_env("MQTT_PUB_TOPIC", "meter/pub/{serial}", serial),
+        topic_env("MQTT_PUB_TOPIC", "meter/pub/+", serial),
         "--processed-topic",
         topic_env("MQTT_PROCESSED_TOPIC", "", serial),
         "--model",
@@ -123,7 +123,7 @@ def server_command(data: Path, serial: str) -> list[str]:
     port = os.environ.get("PORT", "8765")
     log_path = env_path("ANALYSIS_LOG_PATH", data / "live_mqtt_analysis.jsonl")
     events_path = env_path("EVENTS_LOG_PATH", data / "live_mqtt_events.jsonl")
-    csv_path = env_path("WAVEFORM_CSV_PATH", data / f"live_{serial}_realtime.csv")
+    csv_path = env_path("WAVEFORM_CSV_PATH", data / "live_mqtt_waveforms.csv")
     return [
         sys.executable,
         str(ROOT / "prototype" / "live_server.py"),
