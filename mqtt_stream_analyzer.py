@@ -1352,6 +1352,11 @@ def env_bool(name: str, default: bool) -> bool:
     return raw.strip().lower() in {"1", "true", "yes", "on"}
 
 
+def normalize_smtp_password(raw: str | None) -> str:
+    # Gmail app passwords are often copied as four space-separated groups.
+    return "".join((raw or "").split())
+
+
 class EmailNotifier:
     def __init__(
         self,
@@ -1374,7 +1379,7 @@ class EmailNotifier:
         self.smtp_host = smtp_host
         self.smtp_port = smtp_port
         self.smtp_username = smtp_username
-        self.smtp_password = smtp_password
+        self.smtp_password = normalize_smtp_password(smtp_password)
         self.email_from = email_from or smtp_username
         self.email_to = email_to
         self.starttls = starttls

@@ -687,7 +687,7 @@
     table {
       width: 100%;
       border-collapse: collapse;
-      min-width: 1240px;
+      min-width: 1480px;
       font-size: 12px;
     }
 
@@ -704,7 +704,11 @@
     th:nth-child(2),
     td:nth-child(2),
     th:nth-child(3),
-    td:nth-child(3) {
+    td:nth-child(3),
+    th:nth-child(4),
+    td:nth-child(4),
+    th:nth-child(5),
+    td:nth-child(5) {
       text-align: left;
     }
 
@@ -723,6 +727,17 @@
 
     .state-cell {
       font-weight: 700;
+    }
+
+    .action-cell,
+    .reason-cell {
+      text-align: left;
+      color: var(--text);
+    }
+
+    .reason-cell {
+      color: var(--muted);
+      min-width: 180px;
     }
 
     .state-zero {
@@ -1036,8 +1051,9 @@
             <small id="kpiPublishedM3h">--</small>
           </div>
           <div class="kpi">
-            <span>Phantom risk</span>
+            <span>Reading type</span>
             <strong id="kpiRisk">--</strong>
+            <small id="kpiAction">--</small>
           </div>
         </div>
 
@@ -1106,7 +1122,9 @@
             <thead>
               <tr>
                 <th>Time</th>
-                <th>State</th>
+                <th>Reading type</th>
+                <th>Action</th>
+                <th>Reason</th>
                 <th>Quality</th>
                 <th>Temp</th>
                 <th>dT/dt</th>
@@ -1186,6 +1204,13 @@
     const CONNECTED_SERIALS_KEY = "zeroFlowPrototypeConnectedSerials";
     const CLEAR_WATERMARKS_KEY = "zeroFlowPrototypeClearWatermarks";
     const DISPLAY_GPM_MIN_Y_MAX = 1;
+    const TEMP_FILTER_TAU_MIN = 0.75;
+    const TEMP_RATE_LIMIT_C_PER_MIN = 0.35;
+    const ZERO_ESTIMATE_SLEW_FS_PER_MIN = 0.006;
+    const CORRECTION_OVERRUN_MIN_GPM = 0.08;
+    const CORRECTION_OVERRUN_RATIO = 3.0;
+    const DISPLAY_GPM_NOISE_FLOOR = 0.02;
+    const DISPLAY_GPM_ZERO_HOLD = 0.05;
 
     const state = {
       activeSerial: DEFAULT_SERIAL,
@@ -1349,6 +1374,7 @@
       kpiPublished: document.getElementById("kpiPublished"),
       kpiPublishedM3h: document.getElementById("kpiPublishedM3h"),
       kpiRisk: document.getElementById("kpiRisk"),
+      kpiAction: document.getElementById("kpiAction"),
       toast: document.getElementById("toast"),
       chartTooltip: document.getElementById("chartTooltip"),
     };
@@ -1434,16 +1460,109 @@
         splitCooling: "降温单独建模",
         recompute: "重新计算",
         currentTemp: "当前温度",
-        rawFlow: "Raw flow",
-        correctedFlow: "Corrected flow",
-        userSeen: "用户看到",
-        phantomRisk: "Phantom risk",
+        rawFlow: "原始流量",
+        correctedFlow: "修正流量",
+        userSeen: "用户显示",
+        readingType: "读数类型",
         tempDrift: "温度与热漂移",
         flowZeroSuppression: "流量、零点与抑制结果",
         selectHint: "选择一行或一个事件查看通知草稿",
         userGpm: "用户看到 GPM",
-        probabilities: "判定概率",
+        probabilities: "内部判定概率",
         waveformEvidence: "波形证据",
+        legendTemperature: "温度",
+        legendTempRate: "温变速率",
+        legendRaw: "原始",
+        legendZeroEstimate: "零点估计",
+        legendCorrected: "修正",
+        legendPublished: "发布",
+        legendDisplayedGpm: "用户 GPM",
+        legendPositiveGpm: "> 0 GPM",
+        legendPhantom: "假流",
+        legendEvent: "真实事件",
+        legendZero: "零流量",
+        tooltipWaveformSample: "波形采样点",
+        tooltipSample: "采样点",
+        tooltipVoltage: "电压",
+        tooltipBaseline: "基线",
+        tooltipRegion: "区域",
+        tooltipPeak: "峰值",
+        tooltipNoiseBaseline: "噪声 / 基线",
+        tooltipGate: "信号窗口",
+        tooltipOutsideGate: "窗口外",
+        tooltipTemperature: "温度",
+        tooltipFilteredTemp: "滤波后温度",
+        tooltipTempRate: "温变速率",
+        tooltipRawTempRate: "原始温变速率",
+        tooltipDiagnoseDt: "诊断 dt",
+        tooltipDiagnoseTt: "诊断 tt",
+        tooltipRaw: "原始",
+        tooltipZeroEstimate: "零点估计",
+        tooltipCorrected: "修正",
+        tooltipPublished: "发布",
+        tooltipFsZero: "FS 零点",
+        tooltipDisplayed: "用户显示",
+        tooltipDisplayedM3h: "用户显示 m3/h",
+        tooltipAmplification: "放大倍数",
+        tooltipDisplayGuard: "显示保护",
+        tooltipReading: "读数类型",
+        tooltipPhantom: "假流",
+        tooltipEvent: "事件",
+        tooltipZero: "零流量",
+        tooltipTemplate: "波形匹配",
+        tooltipValue: "数值",
+        statSource: "来源",
+        statRawFs: "原始 FS",
+        statRawFr: "原始 FR",
+        statHealth: "健康度",
+        statNoise: "噪声",
+        statGateRms: "窗口 RMS",
+        statPeakOffset: "峰值偏移",
+        statClip: "低/高削波",
+        statWavePeak: "波形峰值",
+        statWaveRms: "波形 RMS",
+        tableTime: "时间",
+        tableReadingType: "读数类型",
+        tableAction: "处理方式",
+        tableReason: "原因",
+        tableQuality: "质量",
+        tableTemp: "温度",
+        tableTempRate: "温变",
+        tableOts: "OTS C",
+        tableDt: "dt ns",
+        tableTt: "tt ns",
+        tableFsRaw: "FS 原始",
+        tableFrRaw: "FR 原始",
+        tableGpmRaw: "GPM 原始",
+        tableFsZero: "FS 零点",
+        tableFrCorrected: "FR 修正",
+        tableGpmCorrected: "GPM 修正",
+        tableFrPublished: "FR 发布",
+        tableGpmDisplayed: "用户 GPM",
+        tablePhantom: "假流概率",
+        tableEvent: "事件概率",
+        tableTemplate: "波形匹配",
+        readingNormalZero: "正常零流量",
+        readingTinyFalseFlow: "微小假流量",
+        readingCorrectedFalseFlow: "已修正假流量",
+        readingNeedsConfirmation: "需要确认",
+        readingRealFlow: "真实用水",
+        readingDataGap: "数据缺口",
+        actionIgnoreNoise: "忽略噪声",
+        actionDisplayZero: "用户显示 0 GPM",
+        actionAutoCorrectZero: "自动修正为 0",
+        actionAskUser: "让用户确认",
+        actionDisplayFlow: "显示流量",
+        actionFreeze: "冻结判断",
+        reasonStableZero: "接近零点且稳定",
+        reasonTinyResidual: "只有微小残差，没有真实用水证据",
+        reasonCorrectedFalse: "温漂/零点补偿已被保护",
+        reasonConflict: "假流和真实用水证据冲突",
+        reasonEventStrong: "真实用水证据较强",
+        reasonDataGap: "数据缺口或连接状态不可靠",
+        readingLine: "读数类型",
+        actionLine: "处理方式",
+        reasonLine: "原因",
         waitingSample: "等待选择样本",
         notificationQueue: "通知队列",
         notificationDraft: "客户通知草稿",
@@ -1480,12 +1599,14 @@
         staleNoticeTitle: "当前流量数据已过期，无法判断实时 GPM。",
         gapNoticeTitle: "检测到数据缺口，当前片段不适合用于零点校准。",
         phantomNoticeTitle: "内部记录：检测到疑似 phantom flow，系统已自动修正。",
+        compensationNoticeTitle: "内部记录：温度补偿可能过冲，用户显示已被保护。",
         eventNoticeTitle: "检测到一段可能的真实用水事件。",
         zeroNoticeTitle: "当前读数已接近零点。",
         reviewNoticeTitle: "当前流量读数需要继续观察。",
         handlingNoZero: "处理：不把断线期间显示为 0 GPM；暂停 phantom/event 判定、zero tracking 和自训练，等待连续稳定帧恢复。",
         handlingGap: "处理：该帧不参与自训练；如果 flow total 连续，volume 应优先用 totalizer delta 恢复。",
         handlingPhantom: "处理：该段不主动推送客户；只有 event probability 上升或 phantom/event 信号冲突时才进入通知队列。",
+        handlingCompensation: "处理：保留 corrected 作为研发诊断，但用户显示为 0 GPM；zero tracking 使用限速后的温度模型，避免补偿本身创造流量。",
         handlingEvent: "处理：该段暂按真实用水保留；如确认没有用水，请选择 Zero flow 触发复核。",
         handlingZero: "处理：系统将该段作为候选无流片段，用于慢速零点追踪。",
         lastFrameTime: "最后一帧时间",
@@ -1557,13 +1678,106 @@
         rawFlow: "Raw flow",
         correctedFlow: "Corrected flow",
         userSeen: "User-visible",
-        phantomRisk: "Phantom risk",
+        readingType: "Reading type",
         tempDrift: "Temperature and drift",
         flowZeroSuppression: "Flow, zero estimate, and suppression",
         selectHint: "Select a row or notification to inspect the draft",
         userGpm: "User-visible GPM",
-        probabilities: "Classification probabilities",
+        probabilities: "Internal probabilities",
         waveformEvidence: "Waveform evidence",
+        legendTemperature: "temperature",
+        legendTempRate: "dT/dt",
+        legendRaw: "raw",
+        legendZeroEstimate: "zero estimate",
+        legendCorrected: "corrected",
+        legendPublished: "published",
+        legendDisplayedGpm: "displayed GPM",
+        legendPositiveGpm: "> 0 GPM",
+        legendPhantom: "phantom",
+        legendEvent: "event",
+        legendZero: "zero",
+        tooltipWaveformSample: "Waveform sample",
+        tooltipSample: "sample",
+        tooltipVoltage: "voltage",
+        tooltipBaseline: "baseline",
+        tooltipRegion: "region",
+        tooltipPeak: "peak",
+        tooltipNoiseBaseline: "noise / baseline",
+        tooltipGate: "gate",
+        tooltipOutsideGate: "outside gate",
+        tooltipTemperature: "temperature",
+        tooltipFilteredTemp: "filtered temp",
+        tooltipTempRate: "dT/dt",
+        tooltipRawTempRate: "raw dT/dt",
+        tooltipDiagnoseDt: "diagnose dt",
+        tooltipDiagnoseTt: "diagnose tt",
+        tooltipRaw: "raw",
+        tooltipZeroEstimate: "zero estimate",
+        tooltipCorrected: "corrected",
+        tooltipPublished: "published",
+        tooltipFsZero: "FS zero",
+        tooltipDisplayed: "displayed",
+        tooltipDisplayedM3h: "displayed m3/h",
+        tooltipAmplification: "amplification",
+        tooltipDisplayGuard: "display guard",
+        tooltipReading: "reading",
+        tooltipPhantom: "phantom",
+        tooltipEvent: "event",
+        tooltipZero: "zero",
+        tooltipTemplate: "template",
+        tooltipValue: "value",
+        statSource: "source",
+        statRawFs: "raw fs",
+        statRawFr: "raw fr",
+        statHealth: "health",
+        statNoise: "noise",
+        statGateRms: "gate RMS",
+        statPeakOffset: "peak offset",
+        statClip: "clip low/high",
+        statWavePeak: "wave peak",
+        statWaveRms: "wave RMS",
+        tableTime: "Time",
+        tableReadingType: "Reading type",
+        tableAction: "Action",
+        tableReason: "Reason",
+        tableQuality: "Quality",
+        tableTemp: "Temp",
+        tableTempRate: "dT/dt",
+        tableOts: "OTS C",
+        tableDt: "dt ns",
+        tableTt: "tt ns",
+        tableFsRaw: "FS raw",
+        tableFrRaw: "FR raw",
+        tableGpmRaw: "GPM raw",
+        tableFsZero: "FS zero",
+        tableFrCorrected: "FR corrected",
+        tableGpmCorrected: "GPM corrected",
+        tableFrPublished: "FR published",
+        tableGpmDisplayed: "Displayed GPM",
+        tablePhantom: "Phantom",
+        tableEvent: "Event",
+        tableTemplate: "Template",
+        readingNormalZero: "Normal zero",
+        readingTinyFalseFlow: "Tiny false flow",
+        readingCorrectedFalseFlow: "Corrected false flow",
+        readingNeedsConfirmation: "Needs confirmation",
+        readingRealFlow: "Real flow",
+        readingDataGap: "Data gap",
+        actionIgnoreNoise: "Ignore noise",
+        actionDisplayZero: "Display 0 GPM",
+        actionAutoCorrectZero: "Auto-correct to 0",
+        actionAskUser: "Ask user to confirm",
+        actionDisplayFlow: "Display flow",
+        actionFreeze: "Freeze decisions",
+        reasonStableZero: "Near zero and stable",
+        reasonTinyResidual: "Only a tiny residual; no real-flow evidence",
+        reasonCorrectedFalse: "Temperature/zero correction is guarded",
+        reasonConflict: "False-flow and real-flow evidence conflict",
+        reasonEventStrong: "Real-flow evidence is strong",
+        reasonDataGap: "Data gap or connection state is unreliable",
+        readingLine: "Reading type",
+        actionLine: "Action",
+        reasonLine: "Reason",
         waitingSample: "Waiting for selected sample",
         notificationQueue: "Notification queue",
         notificationDraft: "Notification / internal note",
@@ -1600,12 +1814,14 @@
         staleNoticeTitle: "Current flow data is stale; real-time GPM cannot be determined.",
         gapNoticeTitle: "A data gap was detected; this segment should not be used for zero calibration.",
         phantomNoticeTitle: "Internal note: suspected phantom flow was detected and auto-corrected.",
+        compensationNoticeTitle: "Internal note: temperature compensation may have overrun; user-visible flow was guarded.",
         eventNoticeTitle: "A possible real water event was detected.",
         zeroNoticeTitle: "Current reading is near zero.",
         reviewNoticeTitle: "Current flow reading needs more observation.",
         handlingNoZero: "Action: do not display outage periods as 0 GPM; freeze phantom/event decisions, zero tracking, and self-training until stable frames resume.",
         handlingGap: "Action: exclude this frame from self-training; if flow total is continuous, recover volume using totalizer delta first.",
         handlingPhantom: "Action: do not notify the customer for this segment; notify only when event probability rises or phantom/event evidence conflicts.",
+        handlingCompensation: "Action: keep corrected flow for engineering diagnosis, but display 0 GPM to the user; zero tracking uses a rate-limited temperature model so compensation cannot create flow by itself.",
         handlingEvent: "Action: keep this segment as real water use for now; if the user confirms no water use, choose Zero flow for review.",
         handlingZero: "Action: use this segment as a candidate no-flow period for slow zero tracking.",
         lastFrameTime: "Last frame",
@@ -1999,12 +2215,14 @@
       setTextAt(".kpi span", 1, t("rawFlow"));
       setTextAt(".kpi span", 2, t("correctedFlow"));
       setTextAt(".kpi span", 3, t("userSeen"));
-      setTextAt(".kpi span", 4, t("phantomRisk"));
+      setTextAt(".kpi span", 4, t("readingType"));
       setTextAt(".chart-title > span:first-child", 0, t("tempDrift"));
       setTextAt(".chart-title > span:first-child", 1, t("flowZeroSuppression"));
       setTextAt(".chart-title > span:first-child", 2, t("userGpm"));
       setTextAt(".chart-title > span:first-child", 3, t("probabilities"));
       setTextAt(".chart-title > span:first-child", 4, t("waveformEvidence"));
+      applyLegendLabels();
+      applyTableHeaders();
       setText(".right-rail .panel:nth-child(1) .panel-title", t("notificationQueue"));
       setText(".right-rail .panel:nth-child(2) .panel-title", t("notificationDraft"));
       els.copyNoticeBtn.title = t("copyDraftTitle");
@@ -2025,6 +2243,52 @@
     function setTextAt(selector, index, value) {
       const el = document.querySelectorAll(selector)[index];
       if (el) el.textContent = value;
+    }
+
+    function applyTableHeaders() {
+      [
+        "tableTime",
+        "tableReadingType",
+        "tableAction",
+        "tableReason",
+        "tableQuality",
+        "tableTemp",
+        "tableTempRate",
+        "tableOts",
+        "tableDt",
+        "tableTt",
+        "tableFsRaw",
+        "tableFrRaw",
+        "tableGpmRaw",
+        "tableFsZero",
+        "tableFrCorrected",
+        "tableGpmCorrected",
+        "tableFrPublished",
+        "tableGpmDisplayed",
+        "tablePhantom",
+        "tableEvent",
+        "tableTemplate",
+      ].forEach((key, index) => setTextAt("thead th", index, t(key)));
+    }
+
+    function applyLegendLabels() {
+      [
+        [0, ["legendTemperature", "legendTempRate"]],
+        [1, ["legendRaw", "legendZeroEstimate", "legendCorrected", "legendPublished"]],
+        [2, ["legendDisplayedGpm", "legendPositiveGpm"]],
+        [3, ["legendPhantom", "legendEvent", "legendZero"]],
+      ].forEach(([panelIndex, keys]) => {
+        const panel = document.querySelectorAll(".chart-panel")[panelIndex];
+        const items = panel ? panel.querySelectorAll(".legend span") : [];
+        keys.forEach((key, index) => {
+          const item = items[index];
+          if (!item) return;
+          const swatch = item.querySelector("i");
+          item.textContent = "";
+          if (swatch) item.appendChild(swatch);
+          item.append(document.createTextNode(t(key)));
+        });
+      });
     }
 
     function syncOutputs() {
@@ -2424,26 +2688,37 @@
         .filter(Number.isFinite);
       const thermalReferenceC = thermalTemps.length ? median(thermalTemps.slice(0, Math.min(12, thermalTemps.length))) : baseTemp;
       let adaptiveFs = 0;
-      let lastTemp = Number(samples[0].otsTempC ?? samples[0].temperatureC);
+      let filteredTemp = Number(samples[0].otsTempC ?? samples[0].temperatureC);
+      let lastFilteredTemp = filteredTemp;
       let lastTimestamp = samples[0].timestamp;
+      let previousZeroEstimateFs = 0;
       let zeroStability = 0;
       let noFlowRun = 0;
 
       return samples.map((row, index) => {
         const minutes = Math.max((row.timestamp - lastTimestamp) / 60000, 0.001);
         const otsTempC = Number.isFinite(Number(row.otsTempC)) ? Number(row.otsTempC) : null;
-        const thermalTempC = otsTempC ?? row.temperatureC;
-        const dTemp = thermalTempC - lastTemp;
-        const tempRate = index === 0 ? 0 : dTemp / minutes;
+        const rawThermalTempC = otsTempC ?? row.temperatureC;
+        if (!Number.isFinite(filteredTemp)) filteredTemp = rawThermalTempC;
+        const tempAlpha = index === 0 ? 1 : clamp(1 - Math.exp(-minutes / TEMP_FILTER_TAU_MIN), 0.015, 0.35);
+        filteredTemp += (rawThermalTempC - filteredTemp) * tempAlpha;
+        const thermalTempC = filteredTemp;
+        const dTemp = thermalTempC - lastFilteredTemp;
+        const tempRateRaw = index === 0 ? 0 : dTemp / minutes;
+        const tempRate = clamp(tempRateRaw, -TEMP_RATE_LIMIT_C_PER_MIN, TEMP_RATE_LIMIT_C_PER_MIN);
         const thermalDeltaC = thermalTempC - thermalReferenceC;
-        const thermalGradientC = otsTempC === null ? null : otsTempC - row.temperatureC;
+        const thermalGradientC = otsTempC === null ? null : rawThermalTempC - thermalTempC;
         const thermalGradientScore = thermalGradientC === null ? 0 : clamp01(Math.abs(thermalGradientC) / 12);
         const rawFsMps = row.rawFsMps ?? frToFs(row.rawFrM3h, config.areaM2);
         const rawFrM3h = row.rawFrM3h ?? fsToFr(rawFsMps, config.areaM2);
         const signedRateCoeff = config.splitCooling && tempRate < 0 ? config.tempCoeffFs * 1.45 : config.tempCoeffFs;
         const tempModelFs = config.tempCoeffFs * thermalDeltaC + signedRateCoeff * 1.8 * tempRate;
         const label = labels[row.id];
-        const estimateBeforeFs = tempModelFs + adaptiveFs;
+        const maxZeroStepFs = Math.max(0.00005, ZERO_ESTIMATE_SLEW_FS_PER_MIN * minutes);
+        const estimateBeforeTargetFs = tempModelFs + adaptiveFs;
+        const estimateBeforeFs = index === 0
+          ? estimateBeforeTargetFs
+          : limitStep(previousZeroEstimateFs, estimateBeforeTargetFs, maxZeroStepFs);
         const correctedBeforeFs = rawFsMps - estimateBeforeFs;
         const waveformDrift = clamp01(
           Math.abs(tempRate) / 0.18 * 0.34 +
@@ -2480,7 +2755,15 @@
           eventProbability = 0;
         }
 
-        const canLearn = !row.dataGap && config.feedback && (label === "zero" || (zeroProbability > 0.82 && eventProbability < 0.22 && Math.abs(correctedBeforeFs) < config.deadbandFsMps * 2.2));
+        const rawNearZeroBefore = Math.abs(rawFsMps) <= config.deadbandFsMps * 0.65 || Math.abs(m3hToGpm(rawFrM3h)) <= 0.03;
+        const correctionBeforeAmplification = Math.abs(correctedBeforeFs) / Math.max(Math.abs(rawFsMps), config.deadbandFsMps * 0.12, 0.00025);
+        const preliminaryCorrectionOverrun = label !== "event" &&
+          rawNearZeroBefore &&
+          Math.abs(m3hToGpm(fsToFr(correctedBeforeFs, config.areaM2))) >= CORRECTION_OVERRUN_MIN_GPM &&
+          correctionBeforeAmplification >= CORRECTION_OVERRUN_RATIO &&
+          eventProbability < 0.62;
+        const tempStableEnough = Math.abs(tempRateRaw) <= TEMP_RATE_LIMIT_C_PER_MIN * 2.5;
+        const canLearn = !row.dataGap && !preliminaryCorrectionOverrun && tempStableEnough && config.feedback && (label === "zero" || (zeroProbability > 0.82 && eventProbability < 0.22 && Math.abs(correctedBeforeFs) < config.deadbandFsMps * 2.2));
         const alpha = label === "zero" ? Math.min(0.35, config.trackerAlpha * 4) : config.trackerAlpha;
         if (canLearn) {
           const residualFs = rawFsMps - tempModelFs;
@@ -2493,13 +2776,30 @@
           noFlowRun = 0;
         }
 
-        const zeroEstimateFs = tempModelFs + adaptiveFs;
+        const zeroEstimateTargetFs = tempModelFs + adaptiveFs;
+        const zeroEstimateFs = index === 0
+          ? zeroEstimateTargetFs
+          : limitStep(previousZeroEstimateFs, zeroEstimateTargetFs, maxZeroStepFs);
+        adaptiveFs = zeroEstimateFs - tempModelFs;
         const correctedFsMps = rawFsMps - zeroEstimateFs;
+        const correctionAmplification = Math.abs(correctedFsMps) / Math.max(Math.abs(rawFsMps), config.deadbandFsMps * 0.12, 0.00025);
+        const rawNearZero = Math.abs(rawFsMps) <= config.deadbandFsMps * 0.65 || Math.abs(m3hToGpm(rawFrM3h)) <= 0.03;
+        const correctedGuardGpm = Math.abs(m3hToGpm(fsToFr(correctedFsMps, config.areaM2)));
+        const correctionOverrun = label !== "event" &&
+          rawNearZero &&
+          correctedGuardGpm >= CORRECTION_OVERRUN_MIN_GPM &&
+          correctionAmplification >= CORRECTION_OVERRUN_RATIO &&
+          eventProbability < 0.62;
+        if (correctionOverrun) {
+          zeroProbability = Math.max(zeroProbability, 0.82);
+          phantomProbability = Math.max(phantomProbability, 0.86);
+          eventProbability = Math.min(eventProbability, 0.18);
+        }
         let publishedFsMps = correctedFsMps;
-        if (config.suppress && phantomProbability > config.alertThreshold && Math.abs(correctedFsMps) < config.deadbandFsMps * 3.0) {
+        if (config.suppress && (correctionOverrun || (phantomProbability > config.alertThreshold && Math.abs(correctedFsMps) < config.deadbandFsMps * 3.0))) {
           publishedFsMps = 0;
         }
-        const autoCorrected = publishedFsMps === 0 && correctedFsMps !== 0 && phantomProbability > config.alertThreshold;
+        const autoCorrected = publishedFsMps === 0 && correctedFsMps !== 0 && (correctionOverrun || phantomProbability > config.alertThreshold);
         const zeroEstimateFrM3h = fsToFr(zeroEstimateFs, config.areaM2);
         const correctedFrM3h = fsToFr(correctedFsMps, config.areaM2);
         const publishedFrM3h = fsToFr(publishedFsMps, config.areaM2);
@@ -2507,11 +2807,22 @@
         const zeroEstimateGpm = m3hToGpm(zeroEstimateFrM3h);
         const correctedGpm = m3hToGpm(correctedFrM3h);
         const publishedGpm = m3hToGpm(publishedFrM3h);
-        const displayedFrM3h = Math.max(0, publishedFrM3h);
-        const displayedGpm = Math.max(0, publishedGpm);
+        let displayedFrM3h = Math.max(0, publishedFrM3h);
+        let displayedGpm = Math.max(0, publishedGpm);
+        let displaySuppressionReason = "";
+        const zeroLikeDisplay = zeroProbability > 0.72 && eventProbability < 0.35;
+        if (displayedGpm > 0 && displayedGpm < DISPLAY_GPM_NOISE_FLOOR) {
+          displayedGpm = 0;
+          displayedFrM3h = 0;
+          displaySuppressionReason = "below_display_noise_floor";
+        } else if (displayedGpm > 0 && zeroLikeDisplay && displayedGpm < DISPLAY_GPM_ZERO_HOLD) {
+          displayedGpm = 0;
+          displayedFrM3h = 0;
+          displaySuppressionReason = "zero_hold_low_positive_residual";
+        }
 
         const measurementConfidence = clamp01(0.96 - 0.45 * phantomProbability + 0.25 * eventProbability - 0.18 * waveformDrift);
-        const stateName = classifyState({ phantomProbability, eventProbability, zeroProbability, correctedFsMps, config });
+        const stateName = classifyState({ dataGap: row.dataGap, phantomProbability, eventProbability, zeroProbability, correctedFsMps, correctionOverrun, config });
 
         const computed = {
           ...row,
@@ -2520,11 +2831,13 @@
           rawFrM3h,
           rawGpm,
           otsTempC,
+          rawThermalTempC,
           thermalTempC,
           thermalDeltaC,
           thermalGradientC,
           thermalGradientScore,
           tempRate,
+          tempRateRaw,
           tempModelFs,
           adaptiveZeroFs: adaptiveFs,
           zeroEstimateFs,
@@ -2539,6 +2852,9 @@
           displayedFrM3h,
           displayedGpm,
           autoCorrected,
+          displaySuppressionReason,
+          correctionAmplification,
+          correctionOverrun,
           waveformDrift,
           zeroProbability,
           phantomProbability,
@@ -2550,14 +2866,16 @@
           userLabel: label || "",
         };
 
-        lastTemp = thermalTempC;
+        lastFilteredTemp = thermalTempC;
         lastTimestamp = row.timestamp;
+        previousZeroEstimateFs = zeroEstimateFs;
         return computed;
       });
     }
 
     function classifyState(row) {
       if (row.dataGap) return "data_gap";
+      if (row.correctionOverrun) return "compensation_overrun";
       if (row.eventProbability > 0.72 && Math.abs(row.correctedFsMps) > row.config.deadbandFsMps * 2.5) return "event_flow";
       if (row.phantomProbability > 0.72) return "phantom_risk";
       if (row.zeroProbability > 0.78 && Math.abs(row.correctedFsMps) <= row.config.deadbandFsMps * 2.0) return "zero_flow";
@@ -2662,10 +2980,12 @@
         els.kpiPublished.textContent = "--";
         els.kpiPublishedM3h.textContent = "--";
         els.kpiRisk.textContent = "--";
+        els.kpiAction.textContent = "--";
         return;
       }
       const quality = currentDataQuality();
       const currentFlowUnknown = shouldHideCurrentFlow(row, quality);
+      const decision = readingDecision(row, quality);
       els.kpiTemp.textContent = `${row.temperatureC.toFixed(1)} C`;
       els.kpiRaw.textContent = `${row.rawGpm.toFixed(3)} GPM`;
       els.kpiRawM3h.textContent = currentFlowUnknown ? `${row.rawFrM3h.toFixed(3)} m3/h last sample` : `${row.rawFrM3h.toFixed(3)} m3/h`;
@@ -2675,7 +2995,8 @@
       els.kpiPublishedM3h.textContent = currentFlowUnknown
         ? `last ${row.displayedGpm.toFixed(3)} GPM; ${quality.shortLabel}`
         : `${row.displayedFrM3h.toFixed(3)} m3/h displayed`;
-      els.kpiRisk.textContent = currentFlowUnknown ? "Frozen" : `${Math.round(row.phantomProbability * 100)}%`;
+      els.kpiRisk.textContent = decision.label;
+      els.kpiAction.textContent = decision.action;
     }
 
     function renderTraining() {
@@ -2784,6 +3105,89 @@
       );
     }
 
+    function readingDecision(row, quality = currentDataQuality()) {
+      if (!row) {
+        return { key: "unknown", label: "--", action: "--", reason: "--", className: "" };
+      }
+      const currentUnknown = shouldHideCurrentFlow(row, quality);
+      if (currentUnknown || row.stateName === "data_gap") {
+        return {
+          key: "data_gap",
+          label: t("readingDataGap"),
+          action: t("actionFreeze"),
+          reason: t("reasonDataGap"),
+          className: "state-gap",
+        };
+      }
+
+      const maxGpm = Math.max(
+        Math.abs(row.rawGpm || 0),
+        Math.abs(row.correctedGpm || 0),
+        Math.abs(row.publishedGpm || 0),
+        Math.abs(row.displayedGpm || 0)
+      );
+      const displayedPositive = row.displayedGpm >= DISPLAY_GPM_NOISE_FLOOR;
+      const tinyResidual = maxGpm > 0.0005 && maxGpm < DISPLAY_GPM_ZERO_HOLD && row.eventProbability < 0.35;
+      const eventStrong = row.userLabel === "event" || (row.stateName === "event_flow" && displayedPositive);
+      const conflict = row.userLabel !== "zero" && row.phantomProbability >= 0.45 && row.eventProbability >= 0.35;
+      const correctedFalse = row.correctionOverrun ||
+        (row.autoCorrected && maxGpm >= DISPLAY_GPM_ZERO_HOLD) ||
+        (row.stateName === "phantom_risk" && row.eventProbability < 0.35);
+
+      if (eventStrong) {
+        return {
+          key: "real_flow",
+          label: t("readingRealFlow"),
+          action: t("actionDisplayFlow"),
+          reason: t("reasonEventStrong"),
+          className: "state-event",
+        };
+      }
+      if (conflict || (displayedPositive && row.eventProbability >= 0.35)) {
+        return {
+          key: "needs_confirmation",
+          label: t("readingNeedsConfirmation"),
+          action: t("actionAskUser"),
+          reason: t("reasonConflict"),
+          className: "state-review",
+        };
+      }
+      if (correctedFalse) {
+        return {
+          key: "corrected_false_flow",
+          label: t("readingCorrectedFalseFlow"),
+          action: t("actionAutoCorrectZero"),
+          reason: t("reasonCorrectedFalse"),
+          className: "state-phantom",
+        };
+      }
+      if (tinyResidual || row.displaySuppressionReason) {
+        return {
+          key: "tiny_false_flow",
+          label: t("readingTinyFalseFlow"),
+          action: t("actionDisplayZero"),
+          reason: t("reasonTinyResidual"),
+          className: "state-phantom",
+        };
+      }
+      return {
+        key: "normal_zero",
+        label: t("readingNormalZero"),
+        action: t("actionIgnoreNoise"),
+        reason: t("reasonStableZero"),
+        className: "state-zero",
+      };
+    }
+
+    function readingDecisionLines(row, quality = currentDataQuality()) {
+      const decision = readingDecision(row, quality);
+      return [
+        `${t("readingLine")}：${decision.label}`,
+        `${t("actionLine")}：${decision.action}`,
+        `${t("reasonLine")}：${decision.reason}`,
+      ];
+    }
+
     function renderEvents() {
       els.eventList.innerHTML = "";
       if (!state.events.length) {
@@ -2850,9 +3254,12 @@
       rows.forEach((row) => {
         const tr = document.createElement("tr");
         if (row.index === state.selectedIndex) tr.classList.add("selected");
+        const decision = readingDecision(row);
         tr.innerHTML = `
           <td>${formatTime(row.timestamp)}</td>
-          <td class="state-cell ${stateClass(row.stateName)}">${stateLabel(row.stateName)}${row.userLabel ? " / " + row.userLabel : ""}</td>
+          <td class="state-cell ${decision.className}">${decision.label}${row.userLabel ? " / " + row.userLabel : ""}</td>
+          <td class="action-cell">${decision.action}</td>
+          <td class="reason-cell">${decision.reason}</td>
           <td class="state-cell ${row.dataGap ? "state-gap" : "state-zero"}">${qualityLabel(row)}</td>
           <td>${row.temperatureC.toFixed(2)}</td>
           <td>${row.tempRate.toFixed(3)}</td>
@@ -2885,16 +3292,19 @@
         return;
       }
       const quality = currentDataQuality();
+      const decision = readingDecision(row, quality);
       els.selectionLabel.textContent = shouldHideCurrentFlow(row, quality)
-        ? `${formatTime(row.timestamp)} / ${stateLabel(row.stateName)} / ${quality.trainingStatus}`
-        : `${formatTime(row.timestamp)} / ${stateLabel(row.stateName)}`;
+        ? `${formatTime(row.timestamp)} / ${decision.label} / ${quality.trainingStatus}`
+        : `${formatTime(row.timestamp)} / ${decision.label}`;
       els.noticeText.value = buildCustomerNotice(row);
     }
 
     function buildCustomerNotice(row) {
       const quality = currentDataQuality();
+      const decisionLines = readingDecisionLines(row, quality);
       if (shouldHideCurrentFlow(row, quality)) {
         return [
+          ...decisionLines,
           t("staleNoticeTitle"),
           `${t("lastFrameTime")}：${formatTime(row.timestamp)}，${t("age")}：${quality.ageText}`,
           `${t("lastDisplayed")}：${formatFlow(row.displayedFrM3h, row.displayedGpm)}`,
@@ -2904,6 +3314,7 @@
       }
       if (row.stateName === "data_gap") {
         return [
+          ...decisionLines,
           t("gapNoticeTitle"),
           `${t("time")}：${formatTime(row.timestamp)}`,
           `${t("gapLength")}：${formatDuration(row.sourceGapMs)}`,
@@ -2913,6 +3324,7 @@
       }
       if (row.stateName === "phantom_risk") {
         return [
+          ...decisionLines,
           t("phantomNoticeTitle"),
           `${t("time")}：${formatTime(row.timestamp)}`,
           `${t("currentTempLine")}：${row.temperatureC.toFixed(1)} C，${t("tempRateLine")}：${row.tempRate.toFixed(2)} C/min`,
@@ -2926,8 +3338,22 @@
           t("handlingPhantom"),
         ].join("\n");
       }
+      if (row.stateName === "compensation_overrun") {
+        return [
+          ...decisionLines,
+          t("compensationNoticeTitle"),
+          `${t("time")}：${formatTime(row.timestamp)}`,
+          `${t("currentTempLine")}：${row.rawThermalTempC.toFixed(2)} C，filtered=${row.thermalTempC.toFixed(2)} C，${t("tempRateLine")}：${row.tempRate.toFixed(2)} C/min`,
+          `raw=${formatFlow(row.rawFrM3h, row.rawGpm)}，corrected=${formatFlow(row.correctedFrM3h, row.correctedGpm)}`,
+          `${t("displayedLine")}=${formatFlow(row.displayedFrM3h, row.displayedGpm)}`,
+          `amplification=${row.correctionAmplification.toFixed(1)}x，fs zero=${row.zeroEstimateFs.toFixed(4)} m/s`,
+          `${t("systemJudgement")}：${state.lang === "en" ? "correction spike guarded" : "补偿过冲已保护"}。`,
+          t("handlingCompensation"),
+        ].join("\n");
+      }
       if (row.stateName === "event_flow") {
         return [
+          ...decisionLines,
           t("eventNoticeTitle"),
           `${t("time")}：${formatTime(row.timestamp)}`,
           `diagnose dt=${formatMaybe(row.diagnoseDtNs, 3)} ns，tt=${formatMaybe(row.diagnoseTtNs, 3)} ns`,
@@ -2941,6 +3367,7 @@
       }
       if (row.stateName === "zero_flow") {
         return [
+          ...decisionLines,
           t("zeroNoticeTitle"),
           `${t("time")}：${formatTime(row.timestamp)}`,
           `${t("zeroEstimateLine")}：fs=${row.zeroEstimateFs.toFixed(4)} m/s，${formatFlow(row.zeroEstimateFrM3h, row.zeroEstimateGpm)}`,
@@ -2948,6 +3375,7 @@
         ].join("\n");
       }
       return [
+        ...decisionLines,
         t("reviewNoticeTitle"),
         `${t("time")}：${formatTime(row.timestamp)}`,
         `raw=${formatFlow(row.rawFrM3h, row.rawGpm)}，corrected=${formatFlow(row.correctedFrM3h, row.correctedGpm)}`,
@@ -3134,26 +3562,26 @@
       const pubOnly = row.sourceType === "pub_only" || row.waveformSupported === false;
       const stats = pubOnly
         ? [
-          ["source", "meter/pub"],
-          ["raw fs", `${formatMaybe(row.rawFsMps, 6)} m/s`],
-          ["raw fr", `${formatMaybe(row.rawFrM3h, 6)} m3/h`],
+          [t("statSource"), "meter/pub"],
+          [t("statRawFs"), `${formatMaybe(row.rawFsMps, 6)} m/s`],
+          [t("statRawFr"), `${formatMaybe(row.rawFrM3h, 6)} m3/h`],
           ["dt", `${formatMaybe(row.diagnoseDtNs, 3)} ns`],
           ["tt", `${formatMaybe(row.diagnoseTtNs, 3)} ns`],
-          ["health", row.healthScore === null || row.healthScore === undefined ? "--" : `${row.healthScore.toFixed(1)} / 100`],
+          [t("statHealth"), row.healthScore === null || row.healthScore === undefined ? "--" : `${row.healthScore.toFixed(1)} / 100`],
         ]
         : [
-          ["template", row.templateCorr?.toFixed(5) ?? "--"],
+          [t("tooltipTemplate"), row.templateCorr?.toFixed(5) ?? "--"],
           ["SNR", `${formatMaybe(row.snrDb, 2)} dB`],
-          ["noise", `${formatMaybe(row.noiseRms, 3)} V`],
-          ["gate RMS", `${formatMaybe(row.gateRms, 3)} V`],
-          ["peak offset", `${formatMaybe(row.peakOffsetSamples, 1)} samples`],
-          ["clip low/high", `${pct(row.lowClipRatio || 0)} / ${pct(row.highClipRatio || 0)}`],
+          [t("statNoise"), `${formatMaybe(row.noiseRms, 3)} V`],
+          [t("statGateRms"), `${formatMaybe(row.gateRms, 3)} V`],
+          [t("statPeakOffset"), `${formatMaybe(row.peakOffsetSamples, 1)} samples`],
+          [t("statClip"), `${pct(row.lowClipRatio || 0)} / ${pct(row.highClipRatio || 0)}`],
         ];
       if (waveform && !pubOnly) {
         stats.push(
-          ["baseline", `${waveform.baseline.toFixed(3)} V`],
-          ["wave peak", `${waveform.peakAbs.toFixed(3)} V @ ${waveform.peakIndex}`],
-          ["wave RMS", `${waveform.gateRmsWaveform.toFixed(3)} V`],
+          [t("tooltipBaseline"), `${waveform.baseline.toFixed(3)} V`],
+          [t("statWavePeak"), `${waveform.peakAbs.toFixed(3)} V @ ${waveform.peakIndex}`],
+          [t("statWaveRms"), `${waveform.gateRmsWaveform.toFixed(3)} V`],
         );
       }
       els.waveformStats.innerHTML = stats.map(([label, value]) => `
@@ -3364,10 +3792,10 @@
 
       ctx.fillStyle = color.text;
       ctx.font = "11px system-ui, sans-serif";
-      ctx.fillText("noise/baseline", pad.left + 6, pad.top + 14);
-      ctx.fillText("gate", xFor(waveform.gateStart) + 6, pad.top + 14);
+      ctx.fillText(t("tooltipNoiseBaseline"), pad.left + 6, pad.top + 14);
+      ctx.fillText(t("tooltipGate"), xFor(waveform.gateStart) + 6, pad.top + 14);
       ctx.fillStyle = color.peak;
-      ctx.fillText(`peak ${waveform.peakIndex}`, Math.min(xFor(waveform.peakIndex) + 6, w - 82), h - pad.bottom - 8);
+      ctx.fillText(`${t("tooltipPeak")} ${waveform.peakIndex}`, Math.min(xFor(waveform.peakIndex) + 6, w - 82), h - pad.bottom - 8);
       drawWaveformHover(ctx, w, h, yRange, samples.length);
     }
 
@@ -3428,19 +3856,19 @@
       const index = indexFromX(localX, waveform.samples.length, w);
       const value = waveform.samples[index];
       const region = index < WAVEFORM_BASELINE_SAMPLES
-        ? "noise / baseline"
+        ? t("tooltipNoiseBaseline")
         : index >= waveform.gateStart && index <= waveform.gateEnd
-          ? "gate"
-          : "outside gate";
+          ? t("tooltipGate")
+          : t("tooltipOutsideGate");
       return {
         chartId,
         sampleIndex: index,
-        html: tooltipHtml("Waveform sample", [
-          [`sample`, index],
-          [`voltage`, `${formatMaybe(value, 3)} V`],
-          [`baseline`, `${formatMaybe(waveform.baseline, 3)} V`],
-          [`region`, region],
-          [`peak`, `${formatMaybe(waveform.peakAbs, 3)} V @ ${waveform.peakIndex}`],
+        html: tooltipHtml(t("tooltipWaveformSample"), [
+          [t("tooltipSample"), index],
+          [t("tooltipVoltage"), `${formatMaybe(value, 3)} V`],
+          [t("tooltipBaseline"), `${formatMaybe(waveform.baseline, 3)} V`],
+          [t("tooltipRegion"), region],
+          [t("tooltipPeak"), `${formatMaybe(waveform.peakAbs, 3)} V @ ${waveform.peakIndex}`],
         ]),
       };
     }
@@ -3448,40 +3876,44 @@
     function timeSeriesTooltip(chartId, row) {
       if (chartId === "tempChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          ["temperature", `${row.temperatureC.toFixed(2)} C`],
+          [t("tooltipTemperature"), `${row.rawThermalTempC.toFixed(2)} C`],
+          [t("tooltipFilteredTemp"), `${row.thermalTempC.toFixed(2)} C`],
           ["OTS", row.otsTempC === null ? "--" : `${row.otsTempC.toFixed(2)} C`],
-          ["dT/dt", `${row.tempRate.toFixed(3)} C/min`],
-          ["diagnose dt", `${formatMaybe(row.diagnoseDtNs, 3)} ns`],
-          ["diagnose tt", `${formatMaybe(row.diagnoseTtNs, 3)} ns`],
+          [t("tooltipTempRate"), `${row.tempRate.toFixed(3)} C/min`],
+          [t("tooltipRawTempRate"), `${row.tempRateRaw.toFixed(3)} C/min`],
+          [t("tooltipDiagnoseDt"), `${formatMaybe(row.diagnoseDtNs, 3)} ns`],
+          [t("tooltipDiagnoseTt"), `${formatMaybe(row.diagnoseTtNs, 3)} ns`],
         ]);
       }
       if (chartId === "flowChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          ["raw", `${row.rawFrM3h.toFixed(3)} m3/h`],
-          ["zero estimate", `${row.zeroEstimateFrM3h.toFixed(3)} m3/h`],
-          ["corrected", `${row.correctedFrM3h.toFixed(3)} m3/h`],
-          ["published", `${row.publishedFrM3h.toFixed(3)} m3/h`],
-          ["FS zero", `${row.zeroEstimateFs.toFixed(4)} m/s`],
+          [t("tooltipRaw"), `${row.rawFrM3h.toFixed(3)} m3/h`],
+          [t("tooltipZeroEstimate"), `${row.zeroEstimateFrM3h.toFixed(3)} m3/h`],
+          [t("tooltipCorrected"), `${row.correctedFrM3h.toFixed(3)} m3/h`],
+          [t("tooltipPublished"), `${row.publishedFrM3h.toFixed(3)} m3/h`],
+          [t("tooltipFsZero"), `${row.zeroEstimateFs.toFixed(4)} m/s`],
         ]);
       }
       if (chartId === "displayChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          ["displayed", `${row.displayedGpm.toFixed(3)} GPM`],
-          ["displayed m3/h", `${row.displayedFrM3h.toFixed(3)} m3/h`],
-          ["corrected", `${row.correctedGpm.toFixed(3)} GPM`],
-          ["state", stateLabel(row.stateName)],
+          [t("tooltipDisplayed"), `${row.displayedGpm.toFixed(3)} GPM`],
+          [t("tooltipDisplayedM3h"), `${row.displayedFrM3h.toFixed(3)} m3/h`],
+          [t("tooltipCorrected"), `${row.correctedGpm.toFixed(3)} GPM`],
+          [t("tooltipAmplification"), `${row.correctionAmplification.toFixed(1)}x`],
+          [t("tooltipDisplayGuard"), row.displaySuppressionReason || "--"],
+          [t("tooltipReading"), readingDecision(row).label],
         ]);
       }
       if (chartId === "probChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          ["phantom", pct(row.phantomProbability)],
-          ["event", pct(row.eventProbability)],
-          ["zero", pct(row.zeroProbability)],
-          ["template", formatMaybe(row.templateCorr, 5)],
+          [t("tooltipPhantom"), pct(row.phantomProbability)],
+          [t("tooltipEvent"), pct(row.eventProbability)],
+          [t("tooltipZero"), pct(row.zeroProbability)],
+          [t("tooltipTemplate"), formatMaybe(row.templateCorr, 5)],
           ["SNR", `${formatMaybe(row.snrDb, 2)} dB`],
         ]);
       }
-      return tooltipHtml(formatTime(row.timestamp), [["value", "--"]]);
+      return tooltipHtml(formatTime(row.timestamp), [[t("tooltipValue"), "--"]]);
     }
 
     function tooltipHtml(title, rows) {
@@ -3776,12 +4208,14 @@
         zero_flow: "Zero",
         event_flow: "Event",
         phantom_risk: "Phantom",
+        compensation_overrun: "Guarded",
         data_gap: "Gap",
         review: "Review",
       } : {
         zero_flow: "Zero",
         event_flow: "Event",
         phantom_risk: "Phantom",
+        compensation_overrun: "保护",
         data_gap: "Gap",
         review: "Review",
       };
@@ -3793,6 +4227,7 @@
         zero_flow: "state-zero",
         event_flow: "state-event",
         phantom_risk: "state-phantom",
+        compensation_overrun: "state-phantom",
         data_gap: "state-gap",
         review: "state-review",
       }[value] || "";
@@ -3854,6 +4289,11 @@
 
     function clamp01(value) {
       return clamp(value, 0, 1);
+    }
+
+    function limitStep(previous, target, maxStep) {
+      if (!Number.isFinite(previous) || !Number.isFinite(target)) return target;
+      return previous + clamp(target - previous, -Math.abs(maxStep), Math.abs(maxStep));
     }
 
     function pipeGeometry(outerDiameterMm, wallThicknessMm) {

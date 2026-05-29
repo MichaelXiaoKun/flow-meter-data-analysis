@@ -113,6 +113,11 @@ confirmed acoustic events such as empty pipe or air bubbles; set
 attempts are written to `live_notifications.jsonl` in the data directory or
 Railway volume.
 
+Set these in Railway's Variables tab and redeploy the service. For Gmail,
+`EMAIL_FROM` and `SMTP_USERNAME` should usually be the same account, and
+`SMTP_PASSWORD` must be a Gmail App Password rather than the normal login
+password. Railway does not need the local macOS `SSL_CERT_FILE` setting.
+
 ## Persistent data
 
 Attach a Railway Volume to the service if you want logs, waveform CSV, and the
