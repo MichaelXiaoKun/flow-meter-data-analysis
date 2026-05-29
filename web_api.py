@@ -16,10 +16,15 @@ from typing import Any, Optional
 from fastapi import Depends, FastAPI, Header, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
 
-from meter_data_store import MeterDataQuery, parse_range_seconds
+from meter_data_store import (
+    MeterDataQuery,
+    SERIES_DEFAULT_MAX_POINTS,
+    SERIES_MAX_POINTS_CAP,
+    parse_range_seconds,
+)
 
 
-DEFAULT_SERIES_MAX_POINTS = 1600
+DEFAULT_SERIES_MAX_POINTS = SERIES_DEFAULT_MAX_POINTS
 
 
 def env_path(name: str, default: Path) -> Path:
@@ -96,7 +101,7 @@ def meter_series(
     normalized = normalize_serial(serial)
     if not normalized:
         raise HTTPException(status_code=400, detail="serial required")
-    max_points = max(1, min(int(max_points or DEFAULT_SERIES_MAX_POINTS), 5000))
+    max_points = max(1, min(int(max_points or DEFAULT_SERIES_MAX_POINTS), SERIES_MAX_POINTS_CAP))
     range_seconds = parse_range_seconds(range)
     points = query_store().series(normalized, range_seconds, max_points)
     return {

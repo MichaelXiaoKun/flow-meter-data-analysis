@@ -490,6 +490,15 @@
       line-height: 1.25;
     }
 
+    .kpi[data-kpi] {
+      cursor: help;
+    }
+
+    .kpi[data-kpi]:focus {
+      outline: 2px solid #2563eb;
+      outline-offset: 2px;
+    }
+
     .status-pill {
       display: inline-flex;
       align-items: center;
@@ -753,6 +762,10 @@
     }
 
     .state-review {
+      color: var(--amber);
+    }
+
+    .state-signal {
       color: var(--amber);
     }
 
@@ -1045,7 +1058,7 @@
             <strong id="kpiCorrected">--</strong>
             <small id="kpiCorrectedM3h">--</small>
           </div>
-          <div class="kpi">
+          <div class="kpi" data-kpi="user-visible" tabindex="0" aria-label="User-visible GPM">
             <span>用户看到</span>
             <strong id="kpiPublished">--</strong>
             <small id="kpiPublishedM3h">--</small>
@@ -1201,9 +1214,11 @@
     const LIVE_FRAME_FLUSH_MS = 150;
     const LIVE_PERF_LOG_MS = 5000;
     const LIVE_PANEL_RENDER_THROTTLE_MS = 1000;
-    const CHART_MAX_VISIBLE_POINTS = 1600;
     const HISTORY_SERIES_RANGE = "24h";
-    const HISTORY_SERIES_MAX_POINTS = CHART_MAX_VISIBLE_POINTS;
+    const DATA_POINTS_PER_24H = 24 * 1800;
+    const CHART_MAX_VISIBLE_POINTS = DATA_POINTS_PER_24H;
+    const LIVE_RETENTION_MS = 24 * 60 * 60 * 1000;
+    const HISTORY_SERIES_MAX_POINTS = DATA_POINTS_PER_24H;
     const SERIALS_KEY = "zeroFlowPrototypeSerials";
     const ACTIVE_SERIAL_KEY = "zeroFlowPrototypeActiveSerial";
     const AUTO_CONNECT_KEY = "zeroFlowPrototypeAutoConnect";
@@ -1378,6 +1393,7 @@
       kpiRawM3h: document.getElementById("kpiRawM3h"),
       kpiCorrected: document.getElementById("kpiCorrected"),
       kpiCorrectedM3h: document.getElementById("kpiCorrectedM3h"),
+      kpiPublishedCard: document.querySelector(".kpi[data-kpi='user-visible']"),
       kpiPublished: document.getElementById("kpiPublished"),
       kpiPublishedM3h: document.getElementById("kpiPublishedM3h"),
       kpiRisk: document.getElementById("kpiRisk"),
@@ -1557,18 +1573,21 @@
         readingTinyFalseFlow: "微小假流量",
         readingCorrectedFalseFlow: "已修正假流量",
         readingNeedsConfirmation: "需要确认",
+        readingSignalDegraded: "声学信号弱",
         readingRealFlow: "真实用水",
         readingDataGap: "数据缺口",
         actionIgnoreNoise: "忽略噪声",
         actionDisplayZero: "用户显示 0 GPM",
         actionAutoCorrectZero: "自动修正为 0",
         actionAskUser: "让用户确认",
+        actionCheckSignal: "检查安装/声路",
         actionDisplayFlow: "显示流量",
         actionFreeze: "冻结判断",
         reasonStableZero: "接近零点且稳定",
         reasonTinyResidual: "只有微小残差，没有真实用水证据",
         reasonCorrectedFalse: "温漂/零点补偿已被保护",
         reasonConflict: "假流和真实用水证据冲突",
+        reasonSignalDegraded: "波形显示弱信号或声路丢失，先不要按真实用水确认",
         reasonEventStrong: "真实用水证据较强",
         reasonDataGap: "数据缺口或连接状态不可靠",
         readingLine: "读数类型",
@@ -1772,18 +1791,21 @@
         readingTinyFalseFlow: "Tiny false flow",
         readingCorrectedFalseFlow: "Corrected false flow",
         readingNeedsConfirmation: "Needs confirmation",
+        readingSignalDegraded: "Signal degraded",
         readingRealFlow: "Real flow",
         readingDataGap: "Data gap",
         actionIgnoreNoise: "Ignore noise",
         actionDisplayZero: "Display 0 GPM",
         actionAutoCorrectZero: "Auto-correct to 0",
         actionAskUser: "Ask user to confirm",
+        actionCheckSignal: "Check signal path",
         actionDisplayFlow: "Display flow",
         actionFreeze: "Freeze decisions",
         reasonStableZero: "Near zero and stable",
         reasonTinyResidual: "Only a tiny residual; no real-flow evidence",
         reasonCorrectedFalse: "Temperature/zero correction is guarded",
         reasonConflict: "False-flow and real-flow evidence conflict",
+        reasonSignalDegraded: "Waveform indicates weak or lost acoustic path; do not treat this as user-confirmed flow yet",
         reasonEventStrong: "Real-flow evidence is strong",
         reasonDataGap: "Data gap or connection state is unreliable",
         readingLine: "Reading type",
@@ -2014,6 +2036,7 @@
       setupMeters();
       bindEvents();
       bindChartHover();
+      bindKpiHover();
       applyLanguage();
       recompute();
       window.addEventListener("resize", resizeAllCharts);
@@ -2081,6 +2104,31 @@
           }
         });
       });
+    }
+
+    function bindKpiHover() {
+      document.querySelectorAll(".kpi[data-kpi]").forEach((el) => {
+        const show = (event) => showKpiTooltip(el, event);
+        el.addEventListener("mouseenter", show);
+        el.addEventListener("mousemove", show);
+        el.addEventListener("focus", show);
+        el.addEventListener("mouseleave", hideChartTooltip);
+        el.addEventListener("blur", hideChartTooltip);
+      });
+    }
+
+    function showKpiTooltip(el, event) {
+      const row = selectedRow();
+      syncKpiNativeTooltip(el, row);
+      const html = kpiTooltipHtml(el.dataset.kpi, row);
+      if (!html) {
+        hideChartTooltip();
+        return;
+      }
+      const rect = el.getBoundingClientRect();
+      const clientX = Number.isFinite(event.clientX) ? event.clientX : rect.left + rect.width / 2;
+      const clientY = Number.isFinite(event.clientY) ? event.clientY : rect.top + rect.height / 2;
+      showChartTooltip(html, clientX, clientY);
     }
 
     function addSerialFromInput() {
@@ -2740,6 +2788,9 @@
       const displayedFrM3h = displayedGpm / 4.4028675393;
       const correctedFrM3h = fsToFr(correctedFsMps, config.areaM2);
       const zeroEstimateFrM3h = fsToFr(zeroEstimateFs, config.areaM2);
+      const temperatureC = historySeriesMetric(point, "temperature_c") ?? 25;
+      const publishedGpm = m3hToGpm(correctedFrM3h);
+      const correctionAmplification = Math.abs(correctedFsMps) / Math.max(Math.abs(rawFsMps), config.deadbandFsMps * 0.12, 0.00025);
       return {
         id: `history-${meter.serial}-${timestamp.toISOString()}-${index}`,
         index,
@@ -2749,8 +2800,10 @@
         backendComputed: true,
         historyBucketCount: point.count || 1,
         waveformSupported: false,
-        temperatureC: historySeriesMetric(point, "temperature_c") ?? 25,
+        temperatureC,
         otsTempC: historySeriesMetric(point, "ots_temp_c"),
+        rawThermalTempC: temperatureC,
+        thermalTempC: temperatureC,
         rawFsMps,
         rawFrM3h,
         rawGpm: m3hToGpm(rawFrM3h),
@@ -2762,9 +2815,13 @@
         correctedGpm: m3hToGpm(correctedFrM3h),
         publishedFsMps: correctedFsMps,
         publishedFrM3h: correctedFrM3h,
-        publishedGpm: m3hToGpm(correctedFrM3h),
+        publishedGpm,
         displayedFrM3h,
         displayedGpm,
+        autoCorrected: false,
+        displaySuppressionReason: "",
+        correctionAmplification,
+        correctionOverrun: false,
         phantomProbability: historySeriesMetric(point, "phantom_probability") ?? 0,
         eventProbability: historySeriesMetric(point, "event_probability") ?? 0,
         zeroProbability: historySeriesMetric(point, "zero_probability") ?? 0,
@@ -2862,8 +2919,12 @@
         } else {
           recomputeMeter(meter, currentConfig(), { renderTabs: false });
         }
-        if (isActiveMeter(meter)) render();
-        else renderMeterTabsThrottled();
+        if (isActiveMeter(meter)) {
+          render();
+          scheduleWaveformLoad(false);
+        } else {
+          renderMeterTabsThrottled();
+        }
       }
       logLivePerfCounters(meter);
     }
@@ -2900,18 +2961,43 @@
       sample.dataGap = sample.backendDataGap || sample.sourceGapMs > sampleGapThresholdMs(meter);
       sample.dataQuality = sample.dataGap ? "gap" : "ok";
       meter.samples.push(sample);
-      const shifted = meter.samples.length > CHART_MAX_VISIBLE_POINTS;
-      if (shifted) meter.samples.shift();
       if (sample.backendComputed) {
-        if (shifted && meter.computed.length) meter.computed.shift();
         meter.computed.push(computedRowFromBackendSample(sample, meter.samples.length - 1, currentConfig()));
-        while (meter.computed.length > meter.samples.length) meter.computed.shift();
-        reindexComputedRows(meter);
+        pruneMeterToRetentionWindow(meter);
         meter.chartRowsCache = {};
+      } else {
+        pruneMeterToRetentionWindow(meter);
       }
-      meter.selectedIndex = meter.samples.length - 1;
+      meter.selectedIndex = Math.max(0, (meter.computed.length || meter.samples.length) - 1);
       if (options.recompute !== false) recomputeMeter(meter);
       if (options.render !== false && isActiveMeter(meter)) render();
+      return true;
+    }
+
+    function pruneMeterToRetentionWindow(meter) {
+      if (!meter.samples.length) return false;
+      const latestMs = meter.samples[meter.samples.length - 1].timestamp.getTime();
+      const cutoffMs = latestMs - LIVE_RETENTION_MS;
+      const beforeSamples = meter.samples.length;
+      let firstKeepIndex = 0;
+      while (
+        firstKeepIndex < beforeSamples - 1 &&
+        meter.samples[firstKeepIndex].timestamp.getTime() < cutoffMs
+      ) {
+        firstKeepIndex += 1;
+      }
+      firstKeepIndex = Math.max(firstKeepIndex, beforeSamples - DATA_POINTS_PER_24H);
+      if (firstKeepIndex <= 0) return false;
+      meter.samples = meter.samples.slice(firstKeepIndex);
+      if (meter.computed.length) {
+        const firstSampleMs = meter.samples[0].timestamp.getTime();
+        meter.computed = meter.computed.filter((row, index) => (
+          index === meter.computed.length - 1 || row.timestamp.getTime() >= firstSampleMs
+        ));
+        while (meter.computed.length > meter.samples.length) meter.computed.shift();
+        reindexComputedRows(meter);
+      }
+      meter.chartRowsCache = {};
       return true;
     }
 
@@ -2945,11 +3031,18 @@
       const publishedFrM3h = sample.publishedFrM3h ?? fsToFr(publishedFsMps, config.areaM2);
       const displayedGpm = sample.displayedGpm ?? Math.max(0, m3hToGpm(publishedFrM3h));
       const displayedFrM3h = sample.displayedFrM3h ?? displayedGpm / 4.4028675393;
+      const temperatureC = sample.temperatureC ?? 25;
+      const rawThermalTempC = sample.rawThermalTempC ?? temperatureC;
+      const thermalTempC = sample.thermalTempC ?? rawThermalTempC;
+      const correctionAmplification = sample.correctionAmplification ??
+        Math.abs(correctedFsMps) / Math.max(Math.abs(rawFsMps), config.deadbandFsMps * 0.12, 0.00025);
       return {
         ...sample,
         index,
-        temperatureC: sample.temperatureC ?? 25,
+        temperatureC,
         otsTempC: sample.otsTempC ?? null,
+        rawThermalTempC,
+        thermalTempC,
         diagnoseDtNs: sample.diagnoseDtNs ?? null,
         diagnoseTtNs: sample.diagnoseTtNs ?? null,
         tempRate: sample.tempRate ?? 0,
@@ -2970,7 +3063,7 @@
         displayedGpm,
         autoCorrected: Boolean(sample.autoCorrected),
         displaySuppressionReason: sample.displaySuppressionReason || "",
-        correctionAmplification: sample.correctionAmplification ?? 0,
+        correctionAmplification,
         correctionOverrun: Boolean(sample.correctionOverrun),
         waveformDrift: sample.waveformDrift ?? 0,
         zeroProbability: sample.zeroProbability ?? 0,
@@ -3062,6 +3155,7 @@
         analyzerScore: finiteNumber(record.score),
         analyzerLabel: record.label || "",
         pipeState: record.pipe_state || "",
+        rawPipeState: record.raw_pipe_state || "",
         healthScore: finiteNumber(record.flow_meter_health?.score),
         measurementConfidence: finiteNumber(record.measurement_confidence),
         training: record.self_training || null,
@@ -3405,6 +3499,14 @@
         return;
       }
       const latest = state.computed[state.computed.length - 1];
+      if (latest) {
+        const latestDecision = readingDecision(latest, quality);
+        if (["needs_confirmation", "signal_degraded"].includes(latestDecision.key)) {
+          els.runStatus.textContent = "Review";
+          els.runStatus.className = "status-pill amber";
+          return;
+        }
+      }
       if (!state.events.length && latest?.autoCorrected) {
         els.runStatus.textContent = "Auto-correct";
         els.runStatus.className = "status-pill amber";
@@ -3426,6 +3528,7 @@
         els.kpiPublishedM3h.textContent = "--";
         els.kpiRisk.textContent = "--";
         els.kpiAction.textContent = "--";
+        syncKpiNativeTooltip(els.kpiPublishedCard, null);
         return;
       }
       const quality = currentDataQuality();
@@ -3442,6 +3545,7 @@
         : `${row.displayedFrM3h.toFixed(3)} m3/h displayed`;
       els.kpiRisk.textContent = decision.label;
       els.kpiAction.textContent = decision.action;
+      syncKpiNativeTooltip(els.kpiPublishedCard, row);
     }
 
     function renderTraining() {
@@ -3606,6 +3710,7 @@
       const displayedPositive = row.displayedGpm >= DISPLAY_GPM_NOISE_FLOOR;
       const tinyResidual = maxGpm > 0.0005 && maxGpm < DISPLAY_GPM_ZERO_HOLD && row.eventProbability < 0.35;
       const eventStrong = row.userLabel === "event" || (row.stateName === "event_flow" && displayedPositive);
+      const signalDegraded = row.userLabel !== "event" && isAcousticSignalDegraded(row);
       const conflict = row.userLabel !== "zero" && row.phantomProbability >= 0.45 && row.eventProbability >= 0.35;
       const correctedFalse = row.correctionOverrun ||
         (row.autoCorrected && maxGpm >= DISPLAY_GPM_ZERO_HOLD) ||
@@ -3618,6 +3723,15 @@
           action: t("actionDisplayFlow"),
           reason: t("reasonEventStrong"),
           className: "state-event",
+        };
+      }
+      if (signalDegraded) {
+        return {
+          key: "signal_degraded",
+          label: t("readingSignalDegraded"),
+          action: t("actionCheckSignal"),
+          reason: t("reasonSignalDegraded"),
+          className: "state-signal",
         };
       }
       if (conflict || (displayedPositive && row.eventProbability >= 0.35)) {
@@ -3654,6 +3768,16 @@
         reason: t("reasonStableZero"),
         className: "state-zero",
       };
+    }
+
+    function isAcousticSignalDegraded(row) {
+      const acousticState = [
+        row.pipeState,
+        row.rawPipeState,
+      ].filter(Boolean).join(" ").toLowerCase();
+      return acousticState.includes("weak_signal") ||
+        acousticState.includes("empty_or_lost_acoustic_path") ||
+        acousticState.includes("lost_acoustic_path");
     }
 
     function readingDecisionLines(row, quality = currentDataQuality()) {
@@ -4436,30 +4560,30 @@
     function timeSeriesTooltip(chartId, row) {
       if (chartId === "tempChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          [t("tooltipTemperature"), `${row.rawThermalTempC.toFixed(2)} C`],
-          [t("tooltipFilteredTemp"), `${row.thermalTempC.toFixed(2)} C`],
-          ["OTS", row.otsTempC === null ? "--" : `${row.otsTempC.toFixed(2)} C`],
-          [t("tooltipTempRate"), `${row.tempRate.toFixed(3)} C/min`],
-          [t("tooltipRawTempRate"), `${row.tempRateRaw.toFixed(3)} C/min`],
+          [t("tooltipTemperature"), `${formatMaybe(row.rawThermalTempC ?? row.temperatureC, 2)} C`],
+          [t("tooltipFilteredTemp"), `${formatMaybe(row.thermalTempC ?? row.temperatureC, 2)} C`],
+          ["OTS", row.otsTempC === null ? "--" : `${formatMaybe(row.otsTempC, 2)} C`],
+          [t("tooltipTempRate"), `${formatMaybe(row.tempRate, 3)} C/min`],
+          [t("tooltipRawTempRate"), `${formatMaybe(row.tempRateRaw, 3)} C/min`],
           [t("tooltipDiagnoseDt"), `${formatMaybe(row.diagnoseDtNs, 3)} ns`],
           [t("tooltipDiagnoseTt"), `${formatMaybe(row.diagnoseTtNs, 3)} ns`],
         ]);
       }
       if (chartId === "flowChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          [t("tooltipRaw"), `${row.rawFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipZeroEstimate"), `${row.zeroEstimateFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipCorrected"), `${row.correctedFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipPublished"), `${row.publishedFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipFsZero"), `${row.zeroEstimateFs.toFixed(4)} m/s`],
+          [t("tooltipRaw"), `${formatMaybe(row.rawFrM3h, 3)} m3/h`],
+          [t("tooltipZeroEstimate"), `${formatMaybe(row.zeroEstimateFrM3h, 3)} m3/h`],
+          [t("tooltipCorrected"), `${formatMaybe(row.correctedFrM3h, 3)} m3/h`],
+          [t("tooltipPublished"), `${formatMaybe(row.publishedFrM3h, 3)} m3/h`],
+          [t("tooltipFsZero"), `${formatMaybe(row.zeroEstimateFs, 4)} m/s`],
         ]);
       }
       if (chartId === "displayChart") {
         return tooltipHtml(formatTime(row.timestamp), [
-          [t("tooltipDisplayed"), `${row.displayedGpm.toFixed(3)} GPM`],
-          [t("tooltipDisplayedM3h"), `${row.displayedFrM3h.toFixed(3)} m3/h`],
-          [t("tooltipCorrected"), `${row.correctedGpm.toFixed(3)} GPM`],
-          [t("tooltipAmplification"), `${row.correctionAmplification.toFixed(1)}x`],
+          [t("tooltipDisplayed"), `${formatMaybe(row.displayedGpm, 3)} GPM`],
+          [t("tooltipDisplayedM3h"), `${formatMaybe(row.displayedFrM3h, 3)} m3/h`],
+          [t("tooltipCorrected"), `${formatMaybe(row.correctedGpm, 3)} GPM`],
+          [t("tooltipAmplification"), `${formatMaybe(row.correctionAmplification, 1)}x`],
           [t("tooltipDisplayGuard"), row.displaySuppressionReason || "--"],
           [t("tooltipReading"), readingDecision(row).label],
         ]);
@@ -4474,6 +4598,44 @@
         ]);
       }
       return tooltipHtml(formatTime(row.timestamp), [[t("tooltipValue"), "--"]]);
+    }
+
+    function kpiTooltipHtml(kind, row) {
+      if (!row) return null;
+      const rows = kpiTooltipRows(kind, row);
+      return rows ? tooltipHtml(kpiTooltipTitle(kind), rows) : null;
+    }
+
+    function kpiTooltipText(kind, row) {
+      if (!row) return "";
+      const rows = kpiTooltipRows(kind, row);
+      if (!rows) return "";
+      return [kpiTooltipTitle(kind), ...rows.map(([label, value]) => `${label}: ${value}`)].join("\n");
+    }
+
+    function kpiTooltipTitle(kind) {
+      if (kind === "user-visible") return t("userGpm");
+      return "";
+    }
+
+    function kpiTooltipRows(kind, row) {
+      if (kind !== "user-visible") return null;
+      return [
+        [t("time"), formatTime(row.timestamp)],
+        [t("tooltipDisplayed"), `${formatMaybe(row.displayedGpm, 3)} GPM`],
+        [t("tooltipDisplayedM3h"), `${formatMaybe(row.displayedFrM3h, 3)} m3/h`],
+        [t("tooltipCorrected"), `${formatMaybe(row.correctedGpm, 3)} GPM`],
+        [t("tooltipPublished"), `${formatMaybe(row.publishedGpm, 3)} GPM`],
+        [t("tooltipDisplayGuard"), row.displaySuppressionReason || "--"],
+        [t("tooltipReading"), readingDecision(row).label],
+      ];
+    }
+
+    function syncKpiNativeTooltip(el, row) {
+      if (!el) return;
+      const label = kpiTooltipText(el.dataset.kpi, row) || kpiTooltipTitle(el.dataset.kpi);
+      el.title = label;
+      el.setAttribute("aria-label", label);
     }
 
     function tooltipHtml(title, rows) {
@@ -4894,7 +5056,12 @@
     }
 
     function formatTime(date) {
-      return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+      return date.toLocaleString([], {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      });
     }
 
     function numberOr(value, fallback) {
@@ -4913,7 +5080,7 @@
     }
 
     function formatFlow(frM3h, gpm) {
-      return `${Number(gpm).toFixed(3)} GPM (${Number(frM3h).toFixed(3)} m3/h)`;
+      return `${formatMaybe(gpm, 3)} GPM (${formatMaybe(frM3h, 3)} m3/h)`;
     }
 
     function escapeHtml(value) {
