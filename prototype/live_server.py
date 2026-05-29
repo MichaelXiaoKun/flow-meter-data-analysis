@@ -21,6 +21,7 @@ from urllib.parse import parse_qs, urlparse
 
 ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
+MAX_METERS = 10
 
 
 def iter_backlog(path: Path, *, serial: str | None, limit: int) -> list[dict]:
@@ -47,6 +48,45 @@ def parse_record(line: str) -> dict | None:
     except json.JSONDecodeError:
         return None
     return record if isinstance(record, dict) else None
+
+
+def normalize_serial(raw: object) -> str:
+    return "".join(ch for ch in str(raw or "").strip().upper() if ch.isalnum() or ch in {"_", "-"})
+
+
+def normalize_serials(raw_serials: object, limit: int = MAX_METERS) -> list[str]:
+    if not isinstance(raw_serials, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw_serials:
+        serial = normalize_serial(item)
+        if not serial or serial in seen:
+            continue
+        seen.add(serial)
+        out.append(serial)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def read_serials_file(path: Path) -> list[str]:
+    if not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    raw_serials = payload.get("serials", []) if isinstance(payload, dict) else payload
+    return normalize_serials(raw_serials)
+
+
+def write_serials_file(path: Path, serials: list[str]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{time.time_ns()}.tmp")
+    body = {"serials": serials, "updated_at_ms": int(time.time() * 1000)}
+    tmp.write_text(json.dumps(body, separators=(",", ":")) + "\n", encoding="utf-8")
+    tmp.replace(path)
 
 
 def compact_jsonl_by_serial(path: Path, serial: str) -> dict[str, int | str]:
@@ -102,7 +142,12 @@ class LiveHandler(SimpleHTTPRequestHandler):
     def end_headers(self) -> None:
         self.send_header("Access-Control-Allow-Origin", "*")
         self.send_header("Access-Control-Allow-Headers", "Content-Type")
+        self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
         super().end_headers()
+
+    def do_OPTIONS(self) -> None:  # noqa: N802
+        self.send_response(HTTPStatus.NO_CONTENT)
+        self.end_headers()
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
@@ -132,10 +177,22 @@ class LiveHandler(SimpleHTTPRequestHandler):
                 return
             self.status()
             return
+        if parsed.path == "/meters":
+            if not self.is_authorized(parsed.query):
+                self.unauthorized()
+                return
+            self.meters()
+            return
         super().do_GET()
 
     def do_POST(self) -> None:  # noqa: N802
         parsed = urlparse(self.path)
+        if parsed.path == "/meters":
+            if not self.is_authorized(parsed.query):
+                self.unauthorized()
+                return
+            self.update_meters()
+            return
         if parsed.path == "/clear-data":
             if not self.is_authorized(parsed.query):
                 self.unauthorized()
@@ -183,11 +240,46 @@ class LiveHandler(SimpleHTTPRequestHandler):
                 "waveform_csv_exists": self.server.waveform_csv_path.exists(),  # type: ignore[attr-defined]
                 "events_log_path": str(self.server.events_log_path),  # type: ignore[attr-defined]
                 "events_log_exists": self.server.events_log_path.exists(),  # type: ignore[attr-defined]
+                "serials_path": str(self.server.serials_path),  # type: ignore[attr-defined]
+                "subscribed_serials": read_serials_file(self.server.serials_path),  # type: ignore[attr-defined]
             },
             indent=2,
         ).encode("utf-8")
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def meters(self) -> None:
+        serials = read_serials_file(self.server.serials_path)  # type: ignore[attr-defined]
+        body = json.dumps({"ok": True, "serials": serials}, separators=(",", ":")).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def update_meters(self) -> None:
+        length = int(self.headers.get("Content-Length", "0") or "0")
+        try:
+            raw_body = self.rfile.read(length).decode("utf-8") if length else "{}"
+            payload = json.loads(raw_body)
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            body = b'{"ok":false,"error":"invalid json"}\n'
+            self.send_response(HTTPStatus.BAD_REQUEST)
+            self.send_header("Content-Type", "application/json")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        serials = normalize_serials(payload.get("serials", []) if isinstance(payload, dict) else [])
+        write_serials_file(self.server.serials_path, serials)  # type: ignore[attr-defined]
+        body = json.dumps({"ok": True, "serials": serials}, separators=(",", ":")).encode("utf-8")
+        self.send_response(HTTPStatus.OK)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -317,6 +409,12 @@ def build_parser() -> argparse.ArgumentParser:
         help="CSV file exposed at /waveform.csv for waveform hover/inspection.",
     )
     parser.add_argument(
+        "--serials-json",
+        type=Path,
+        default=REPO / "live_meter_serials.json",
+        help="UI-managed JSON file containing currently subscribed serial numbers.",
+    )
+    parser.add_argument(
         "--app-token",
         default="",
         help="Optional token required for /stream and /waveform.csv. Use ?token=... in the UI URL.",
@@ -330,11 +428,13 @@ def main() -> None:
     server.log_path = args.log.resolve()  # type: ignore[attr-defined]
     server.events_log_path = args.events_log.resolve()  # type: ignore[attr-defined]
     server.waveform_csv_path = args.waveform_csv.resolve()  # type: ignore[attr-defined]
+    server.serials_path = args.serials_json.resolve()  # type: ignore[attr-defined]
     server.app_token = args.app_token  # type: ignore[attr-defined]
     print(f"Serving prototype: http://{args.host}:{args.port}/temperature_zero_flow_prototype.html")
     print(f"Streaming JSONL:   {server.log_path}")
     print(f"Events JSONL:      {server.events_log_path}")
     print(f"Waveform CSV:      {server.waveform_csv_path}")
+    print(f"Meter serials:     {server.serials_path}")
     print(f"Data auth:         {'enabled' if args.app_token else 'disabled'}")
     server.serve_forever()
 

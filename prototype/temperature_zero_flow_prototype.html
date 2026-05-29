@@ -1285,6 +1285,8 @@
       },
     };
 
+    let subscriptionSyncQueue = Promise.resolve();
+
     const els = {
       serialInput: document.getElementById("serialInput"),
       addSerialBtn: document.getElementById("addSerialBtn"),
@@ -1415,6 +1417,7 @@
         deleting: "正在删除...",
         backendDeleteOk: "已删除 {serial} 的后端历史数据：{count} 行",
         backendDeleteFailed: "后端删除失败：{message}",
+        subscriptionSyncFailed: "后端订阅同步失败：{message}",
         resetLabelsTitle: "清空本地用户确认标签",
         importCsv: "导入 CSV",
         exportLabels: "导出标签",
@@ -1503,6 +1506,7 @@
         eventProbabilityLine: "event flow 概率",
         zeroEstimateLine: "零点估计",
         waveformLiveOnly: "实时 waveform 仅在 MQTT/CSV live 模式下可用",
+        waveformPubOnly: "这台设备没有 waveform；当前只使用 meter/pub telemetry",
         waveformNoMatchKeep: "没有匹配的新 waveform，保留上一帧",
         waveformNoMatch: "没有匹配的 waveform CSV 行",
         waveformReadFailed: "读取新 waveform 失败：{message}",
@@ -1533,6 +1537,7 @@
         deleting: "Deleting...",
         backendDeleteOk: "Deleted backend history for {serial}: {count} rows",
         backendDeleteFailed: "Backend delete failed: {message}",
+        subscriptionSyncFailed: "Backend subscription sync failed: {message}",
         resetLabelsTitle: "Clear local user labels",
         importCsv: "Import CSV",
         exportLabels: "Export labels",
@@ -1621,6 +1626,7 @@
         eventProbabilityLine: "event flow probability",
         zeroEstimateLine: "Zero estimate",
         waveformLiveOnly: "Live waveform is only available in MQTT/CSV live mode",
+        waveformPubOnly: "No waveform is available for this device; using meter/pub telemetry only",
         waveformNoMatchKeep: "No matching new waveform; keeping previous frame",
         waveformNoMatch: "No matching waveform CSV row",
         waveformReadFailed: "Failed to read new waveform: {message}",
@@ -1645,6 +1651,7 @@
         liveGeometryApplied: false,
         liveLastFrameAtMs: null,
         liveErrorAtMs: null,
+        liveSessionId: 0,
         lastQualityRenderKey: "",
         waveform: { status: "idle", key: "" },
         waveformTimer: null,
@@ -1871,6 +1878,7 @@
       const meter = state.meters[normalized];
       if (meter?.liveSource) meter.liveSource.close();
       rememberLiveConnection(normalized, false);
+      syncServerSubscriptions({ silent: true });
       state.meterOrder = state.meterOrder.filter((item) => item !== normalized);
       delete state.meters[normalized];
       if (state.activeSerial === normalized) {
@@ -1916,13 +1924,20 @@
     }
 
     function restoreLiveConnections() {
-      if (autoConnectOverride === "0") return;
+      if (autoConnectOverride === "0") {
+        setServerSubscriptions([], { silent: true });
+        return;
+      }
       let serials = [...state.connectedSerials].filter((serial) => state.meterOrder.includes(serial));
       if (autoConnectOverride === "1" && !serials.length) serials = [state.activeSerial];
-      if (!serials.length) return;
+      if (!serials.length) {
+        setServerSubscriptions([], { silent: true });
+        return;
+      }
+      setServerSubscriptions(serials, { silent: true });
       serials.forEach((serial) => {
         const meter = ensureMeter(serial);
-        startLiveForMeter(meter, { silent: true });
+        startLiveForMeter(meter, { silent: true, sync: false });
       });
       render();
     }
@@ -2070,9 +2085,11 @@
     }
 
     function startLiveForMeter(meter, options = {}) {
-      stopLive(meter, { render: false, remember: false });
+      stopLive(meter, { render: false, remember: false, sync: false });
       const serial = meter.serial;
       const endpoint = liveEndpoint(serial);
+      const liveSessionId = (meter.liveSessionId || 0) + 1;
+      meter.liveSessionId = liveSessionId;
       meter.samples = [];
       meter.computed = [];
       meter.events = [];
@@ -2081,25 +2098,30 @@
       meter.liveLastFrameAtMs = null;
       meter.liveErrorAtMs = null;
       meter.lastQualityRenderKey = "";
-      meter.liveSource = new EventSource(endpoint);
+      const liveSource = new EventSource(endpoint);
+      meter.liveSource = liveSource;
       meter.liveConnected = true;
       if (options.remember !== false) rememberLiveConnection(serial, true);
+      if (options.sync !== false) syncServerSubscriptions({ silent: options.silent });
       if (isActiveMeter(meter)) els.liveSource.textContent = endpoint;
-      meter.liveSource.onopen = () => {
+      liveSource.onopen = () => {
+        if (meter.liveSessionId !== liveSessionId || meter.liveSource !== liveSource) return;
         meter.liveConnected = true;
         meter.liveErrorAtMs = null;
         if (!options.silent) showToast(t("toastConnected", { serial }));
         if (isActiveMeter(meter)) render();
         else renderMeterTabs();
       };
-      meter.liveSource.onerror = () => {
+      liveSource.onerror = () => {
+        if (meter.liveSessionId !== liveSessionId || meter.liveSource !== liveSource) return;
         meter.liveConnected = false;
         meter.liveErrorAtMs = Date.now();
         if (!options.silent) showToast(t("toastInterrupted"));
         if (isActiveMeter(meter)) render();
         else renderMeterTabs();
       };
-      meter.liveSource.addEventListener("frame", (event) => {
+      liveSource.addEventListener("frame", (event) => {
+        if (meter.liveSessionId !== liveSessionId || meter.liveSource !== liveSource) return;
         try {
           meter.liveConnected = true;
           meter.liveLastFrameAtMs = Date.now();
@@ -2113,6 +2135,7 @@
     }
 
     function stopLive(meter = state.activeMeter, options = {}) {
+      meter.liveSessionId = (meter.liveSessionId || 0) + 1;
       if (meter.liveSource) {
         meter.liveSource.close();
       }
@@ -2120,8 +2143,16 @@
       meter.liveConnected = false;
       meter.liveErrorAtMs = Date.now();
       if (options.remember !== false) rememberLiveConnection(meter.serial, false);
+      if (options.sync !== false) {
+        const remaining = subscribedSerials().filter((serial) => serial !== normalizeSerial(meter.serial));
+        syncServerSubscriptions({ silent: options.silent }, remaining);
+      }
       if (options.render !== false) {
-        if (isActiveMeter(meter)) renderTraining();
+        if (isActiveMeter(meter)) {
+          els.liveSource.textContent = "not connected";
+          els.dataQuality.textContent = state.samples.length ? t("stale") : t("noData");
+          renderTraining();
+        }
         renderMeterTabs();
       }
     }
@@ -2216,6 +2247,47 @@
       return `/clear-data?${params}`;
     }
 
+    function metersEndpoint() {
+      const params = new URLSearchParams();
+      if (appToken) params.set("token", appToken);
+      const suffix = params.toString() ? `?${params}` : "";
+      if (window.location.protocol === "file:") {
+        return `http://127.0.0.1:8765/meters${suffix}`;
+      }
+      return `/meters${suffix}`;
+    }
+
+    function subscribedSerials() {
+      return [...state.connectedSerials].filter((serial) => state.meterOrder.includes(serial)).slice(0, MAX_METERS);
+    }
+
+    function syncServerSubscriptions(options = {}, serials = subscribedSerials()) {
+      return setServerSubscriptions(serials, options);
+    }
+
+    async function setServerSubscriptions(serials, options = {}) {
+      const normalizedSerials = uniqueSerials(serials.map(normalizeSerial)).slice(0, MAX_METERS);
+      subscriptionSyncQueue = subscriptionSyncQueue
+        .catch(() => {})
+        .then(async () => {
+          try {
+            const response = await fetch(metersEndpoint(), {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              cache: "no-store",
+              body: JSON.stringify({ serials: normalizedSerials }),
+            });
+            const payload = await response.json().catch(() => ({}));
+            if (!response.ok || payload.ok === false) {
+              throw new Error(payload.error || `HTTP ${response.status}`);
+            }
+          } catch (error) {
+            if (!options.silent) showToast(t("subscriptionSyncFailed", { message: error.message }));
+          }
+        });
+      return subscriptionSyncQueue;
+    }
+
     async function deleteServerDataForMeter(meter) {
       const response = await fetch(clearDataEndpoint(meter.serial), {
         method: "POST",
@@ -2278,10 +2350,14 @@
       const onboardTemp = finiteNumber(record.onboard_temperature_c) ?? finiteNumber(record.ots);
       const fallbackTemp = finiteNumber(record.temperature_c) ?? onboardTemp ?? 25;
       const timestamp = parseTimestamp(record.timestamp || record.server_timestamp || Date.now(), meter.samples.length);
+      const sourceType = record.source_type || record.sourceType || "";
+      const isPubOnly = sourceType === "pub_only" || record.waveform_supported === false;
       return {
         id: `live-${record.serial || meter.serial || "meter"}-${timestamp.toISOString()}-${meter.samples.length}`,
         timestamp,
         serial: record.serial || meter.serial || "",
+        sourceType,
+        waveformSupported: record.waveform_supported !== false,
         temperatureC: fallbackTemp,
         otsTempC: onboardTemp,
         rawFsMps,
@@ -2296,7 +2372,7 @@
         training: record.self_training || null,
         trueFsMps: 0,
         trueFrM3h: 0,
-        templateCorr: finiteNumber(features.template_corr) ?? 0.9965,
+        templateCorr: finiteNumber(features.template_corr) ?? (isPubOnly ? 0.997 : 0.9965),
         noiseRms: finiteNumber(features.noise_rms_v) ?? 0.25,
         gateRms: finiteNumber(features.gate_rms_v) ?? 1.05,
         snrDb: finiteNumber(features.snr_db) ?? 12.2,
@@ -2872,6 +2948,12 @@
         renderWaveformPanel();
         return;
       }
+      if (row.sourceType === "pub_only" || row.waveformSupported === false) {
+        clearTimeout(state.waveformTimer);
+        state.waveform = { status: "missing", key: waveformKey(row), rowIndex: row.index, message: t("waveformPubOnly") };
+        renderWaveformPanel();
+        return;
+      }
       if (!row.serial && !String(row.id || "").startsWith("live-")) {
         state.waveform = { status: "missing", key: "", message: t("waveformLiveOnly") };
         renderWaveformPanel();
@@ -2899,7 +2981,7 @@
       try {
         const now = Date.now();
         if (force || !state.waveformCsvText || now - state.waveformCsvLoadedAtMs > 2500) {
-          const params = new URLSearchParams({ serial: config.serial, t: String(now) });
+          const params = new URLSearchParams({ serial: row.serial || state.activeMeter.serial, t: String(now) });
           if (appToken) params.set("token", appToken);
           const response = await fetch(`${WAVEFORM_CSV_PATH}?${params.toString()}`, { cache: "no-store" });
           if (!response.ok) throw new Error(`waveform CSV ${response.status}`);
@@ -3019,15 +3101,25 @@
     }
 
     function renderWaveformStats(row, waveform) {
-      const stats = [
-        ["template", row.templateCorr?.toFixed(5) ?? "--"],
-        ["SNR", `${formatMaybe(row.snrDb, 2)} dB`],
-        ["noise", `${formatMaybe(row.noiseRms, 3)} V`],
-        ["gate RMS", `${formatMaybe(row.gateRms, 3)} V`],
-        ["peak offset", `${formatMaybe(row.peakOffsetSamples, 1)} samples`],
-        ["clip low/high", `${pct(row.lowClipRatio || 0)} / ${pct(row.highClipRatio || 0)}`],
-      ];
-      if (waveform) {
+      const pubOnly = row.sourceType === "pub_only" || row.waveformSupported === false;
+      const stats = pubOnly
+        ? [
+          ["source", "meter/pub"],
+          ["raw fs", `${formatMaybe(row.rawFsMps, 6)} m/s`],
+          ["raw fr", `${formatMaybe(row.rawFrM3h, 6)} m3/h`],
+          ["dt", `${formatMaybe(row.diagnoseDtNs, 3)} ns`],
+          ["tt", `${formatMaybe(row.diagnoseTtNs, 3)} ns`],
+          ["health", row.healthScore === null || row.healthScore === undefined ? "--" : `${row.healthScore.toFixed(1)} / 100`],
+        ]
+        : [
+          ["template", row.templateCorr?.toFixed(5) ?? "--"],
+          ["SNR", `${formatMaybe(row.snrDb, 2)} dB`],
+          ["noise", `${formatMaybe(row.noiseRms, 3)} V`],
+          ["gate RMS", `${formatMaybe(row.gateRms, 3)} V`],
+          ["peak offset", `${formatMaybe(row.peakOffsetSamples, 1)} samples`],
+          ["clip low/high", `${pct(row.lowClipRatio || 0)} / ${pct(row.highClipRatio || 0)}`],
+        ];
+      if (waveform && !pubOnly) {
         stats.push(
           ["baseline", `${waveform.baseline.toFixed(3)} V`],
           ["wave peak", `${waveform.peakAbs.toFixed(3)} V @ ${waveform.peakIndex}`],
@@ -3802,6 +3894,9 @@
     }
 
     function formatWaveformEvidence(row) {
+      if (row.sourceType === "pub_only" || row.waveformSupported === false) {
+        return t("waveformPubOnly");
+      }
       return [
         `template=${formatMaybe(row.templateCorr, 5)}`,
         `SNR=${formatMaybe(row.snrDb, 2)} dB`,

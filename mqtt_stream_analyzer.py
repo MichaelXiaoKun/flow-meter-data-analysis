@@ -12,10 +12,11 @@ Topic structure (matches the GUI's ``server.js``):
   in which case each byte is decoded as ``int(byte, 16) / 10`` (the device's
   legacy 8‑bit ADC encoding).
 * ``meter/pub/<NUI>`` and ``processed/meter/<NUI>`` — diagnostic publish
-  carrying ``diagnose.sq`` (0–100 signal quality). The analyzer tracks the
-  most-recent SQ per serial with a 5‑minute freshness window — the same
-  rule the GUI uses — and uses it to auto-label captures and gate
-  self-training.
+  carrying ``diagnose.sq`` (0–100 signal quality) plus flow/temperature fields
+  when present. The analyzer tracks the most-recent SQ per serial with a
+  5‑minute freshness window — the same rule the GUI uses — and uses it to
+  auto-label captures and gate self-training. Devices without waveform support
+  still emit a lightweight ``pub_only`` live record from this stream.
 
 A single waveform frame produces:
 
@@ -55,6 +56,9 @@ from train_oneclass_meter_model import (
 
 
 ADC_SAMPLE_RATE_HZ = 100_000_000
+MAX_DYNAMIC_SERIALS = 10
+PUB_ONLY_SIG_GRACE_S = 15.0
+PUB_ONLY_INITIAL_WAIT_S = 4.0
 
 # Matches server.js: SQ readings older than this are treated as "no sq"
 # rather than carrying stale labels onto fresh waveforms.
@@ -419,6 +423,50 @@ def topic_id(topic: str) -> str:
         if topic.startswith(prefix):
             return topic[len(prefix):]
     return topic.rsplit("/", 1)[-1]
+
+
+def normalize_meter_serial(raw: Any) -> str:
+    return "".join(ch for ch in str(raw or "").strip().upper() if ch.isalnum() or ch in {"_", "-"})
+
+
+def load_subscription_serials(path: Path | None, limit: int = MAX_DYNAMIC_SERIALS) -> list[str]:
+    if path is None or not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return []
+    raw_serials = payload.get("serials", []) if isinstance(payload, dict) else payload
+    if not isinstance(raw_serials, list):
+        return []
+    out: list[str] = []
+    seen: set[str] = set()
+    for item in raw_serials:
+        serial = normalize_meter_serial(item)
+        if not serial or serial in seen:
+            continue
+        seen.add(serial)
+        out.append(serial)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def expand_subscription_topics(templates: list[str], serials: list[str]) -> set[str]:
+    topics: set[str] = set()
+    for template in templates:
+        if not template:
+            continue
+        if "{serial}" in template:
+            topics.update(template.format(serial=serial) for serial in serials)
+            continue
+        parts = template.split("/")
+        if "+" in parts:
+            for serial in serials:
+                topics.add("/".join(serial if part == "+" else part for part in parts))
+            continue
+        topics.add(template)
+    return topics
 
 
 # ── Optional CSV capture in the GUI's exact format ─────────────────────────────
@@ -1130,6 +1178,147 @@ def confidence_from_score(score: float, thresholds: dict[str, float]) -> float:
     return max(0.0, 0.30 * math.exp(-(score - anomaly)))
 
 
+def utc_timestamp_ms() -> str:
+    now_ms = int(time.time() * 1000)
+    seconds = now_ms // 1000
+    return time.strftime("%Y-%m-%dT%H:%M:%S", time.gmtime(seconds)) + f".{now_ms % 1000:03d}Z"
+
+
+def pub_only_confidence(sq_label: str | None, metadata: dict[str, Any]) -> float:
+    if sq_label == "good":
+        confidence = 0.78
+    elif sq_label == "fair":
+        confidence = 0.62
+    elif sq_label == "poor":
+        confidence = 0.40
+    else:
+        confidence = 0.54
+    if metadata.get("diagnose_dt_ns") is not None:
+        confidence += 0.06
+    if metadata.get("pub_fs_mps") is not None or metadata.get("pub_fr_m3h") is not None:
+        confidence += 0.04
+    return max(0.0, min(0.86, confidence))
+
+
+def pub_only_health(confidence: float, sq_label: str | None, metadata: dict[str, Any]) -> dict[str, Any]:
+    score = round(confidence * 100.0, 1)
+    drivers = ["meter/pub telemetry received", "waveform not available for this device"]
+    if sq_label and sq_label != "unknown":
+        drivers.append(f"signal quality label: {sq_label}")
+    if metadata.get("onboard_temperature_c") is not None:
+        drivers.append("onboard temperature available")
+    return {
+        "version": "pub_only_v1",
+        "score": score,
+        "label": "Telemetry only",
+        "color": "#64748b",
+        "meaning": "Publish telemetry is available, but no waveform/acoustic capture was received.",
+        "subscores": {
+            "telemetry": score,
+            "acoustic_pattern_match": None,
+        },
+        "weights": {
+            "telemetry": 1.0,
+            "acoustic_pattern_match": 0.0,
+        },
+        "drivers": drivers,
+    }
+
+
+def build_pub_only_record(
+    serial: str,
+    metadata: dict[str, Any],
+    analyzer: AdaptiveAnalyzer,
+    sq_tracker: SqTracker,
+    thr_poor: float = DEFAULT_THR_POOR,
+    thr_fair: float = DEFAULT_THR_FAIR,
+) -> dict[str, Any]:
+    sq, age = sq_tracker.get(serial)
+    sq_label = sq_tracker.label(serial, thr_poor, thr_fair) if sq is not None else "unknown"
+    dt_ns, dt_age_ms, dt_delta_ns = sq_tracker.get_dt(serial)
+    merged = dict(metadata)
+    confidence = pub_only_confidence(sq_label, merged)
+    return {
+        "timestamp": utc_timestamp_ms(),
+        "serial": serial,
+        "source_type": "pub_only",
+        "waveform_supported": False,
+        "seq": merged.get("seq", merged.get("sq", sq)),
+        "sq": sq,
+        "sq_age_ms": int(age) if age is not None else None,
+        "sq_label": sq_label,
+        "pub_dt_ns": dt_ns,
+        "pub_dt_age_ms": int(dt_age_ms) if dt_age_ms is not None else None,
+        "pub_dt_delta_ns": dt_delta_ns,
+        "pub_meta_age_ms": 0,
+        "ots": merged.get("ots"),
+        "onboard_temperature_c": merged.get("onboard_temperature_c"),
+        "pub_fs_mps": merged.get("pub_fs_mps"),
+        "pub_fr_m3h": merged.get("pub_fr_m3h"),
+        "pub_tfs_mps": merged.get("pub_tfs_mps"),
+        "pub_tfr_m3h": merged.get("pub_tfr_m3h"),
+        "raw_flow_speed_mps": merged.get("raw_flow_speed_mps"),
+        "raw_flow_rate_m3h": merged.get("raw_flow_rate_m3h"),
+        "raw_flow_total_m3": merged.get("raw_flow_total_m3"),
+        "pub_flow_total_m3": merged.get("pub_flow_total_m3"),
+        "zero_corr_fs_mps": merged.get("zero_corr_fs_mps"),
+        "zero_corr_fr_m3h": merged.get("zero_corr_fr_m3h"),
+        "corr_fs_mps": merged.get("corr_fs_mps"),
+        "corr_fr_m3h": merged.get("corr_fr_m3h"),
+        "flow_speed_zero_offset_mps": merged.get("flow_speed_zero_offset_mps"),
+        "low_flow_cutoff_mps": merged.get("low_flow_cutoff_mps"),
+        "measure_zero": merged.get("measure_zero"),
+        "measure_lfc": merged.get("measure_lfc"),
+        "measure_ledlfc": merged.get("measure_ledlfc"),
+        "measure_kf": merged.get("measure_kf"),
+        "diagnose_dt_ns": merged.get("diagnose_dt_ns"),
+        "diagnose_tt_ns": merged.get("diagnose_tt_ns"),
+        "pipe_outer_diameter_mm": merged.get("pipe_outer_diameter_mm"),
+        "pipe_wall_thickness_mm": merged.get("pipe_wall_thickness_mm"),
+        "pipe_inner_diameter_mm": merged.get("pipe_inner_diameter_mm"),
+        "pipe_area_from_geometry_m2": merged.get("pipe_area_from_geometry_m2"),
+        "pipe_area_m2": merged.get("pipe_area_m2"),
+        "score": None,
+        "label": "pub_only",
+        "peak_mode": "pub_only",
+        "mode_aware": False,
+        "score_thresholds": analyzer.thresholds,
+        "raw_pipe_state": "telemetry_only",
+        "pipe_state": "telemetry_only",
+        "measurement_confidence": confidence,
+        "flow_meter_health": pub_only_health(confidence, sq_label, merged),
+        "cnn_analysis": None,
+        "cnn_health_weight": analyzer.cnn_health_weight,
+        "diagnostic_reasons": ["pub telemetry only; waveform not available"],
+        "features": {},
+        "top_z_reasons": [],
+        "self_training": {
+            "enabled": False,
+            "trained_this_sample": False,
+            "updates": 0,
+            "total_updates": analyzer.total_updates,
+            "stable_ratio": 0,
+            "freeze_reason": "pub_only_no_waveform",
+            "serial_known": serial in analyzer.states,
+        },
+        "transitioned": False,
+        "previous_pipe_state": "telemetry_only",
+        "state_frames": 0,
+        "state_entered_at": None,
+        "state_confirmation": 1.0,
+        "pending_pipe_state": None,
+        "pending_state_frames": 0,
+        "condition": "telemetry_only",
+        "active_conditions": [],
+        "condition_entered_at": {},
+        "detection_events": [],
+        "empty_window_count": 0,
+        "empty_window_size": 0,
+        "air_corr_std": None,
+        "air_corr_threshold": None,
+    }
+
+
 def write_jsonl(path: Path | None, record: dict[str, Any]) -> None:
     if path is None:
         return
@@ -1182,16 +1371,18 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
 
     sq_tracker = SqTracker()
 
-    # Build the set of topics to subscribe to. Defaults mirror the GUI:
-    #   sig: meter/sig/+
-    #   pub (SQ source): meter/pub/+, processed/meter/+
-    # A legacy --topic override still works for the old generic shape.
-    sub_topics: list[str] = []
-    if args.topic:
-        sub_topics.append(args.topic)
-    else:
-        sub_topics.extend([args.sig_topic, args.pub_topic, args.processed_topic])
-    sub_topics = [topic for topic in sub_topics if topic]
+    # Build MQTT subscription templates. With --serials-json, {serial} or a '+'
+    # topic segment is expanded from the UI-managed serial list instead of
+    # subscribing to broker wildcards.
+    topic_templates = [args.topic] if args.topic else [args.sig_topic, args.pub_topic, args.processed_topic]
+    topic_templates = [topic for topic in topic_templates if topic]
+    static_topics = set(topic_templates) if not args.serials_json else set()
+    subscribed_topics: set[str] = set()
+    last_seen_serials: list[str] = []
+    waiting_for_serials_printed = False
+    pub_only_last_console_ts: dict[str, float] = {}
+    last_sig_seen_wall_ts: dict[str, float] = {}
+    first_pub_seen_wall_ts: dict[str, float] = {}
 
     client_id = (args.client_id or "lens_cnn_{uuid}").format(uuid=uuid.uuid4())
     callback_api_version = getattr(getattr(mqtt, "CallbackAPIVersion", None), "VERSION2", None)
@@ -1207,6 +1398,32 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
     if args.tls:
         client.tls_set()
 
+    def desired_topics() -> tuple[set[str], list[str]]:
+        if not args.serials_json:
+            return set(static_topics), []
+        serials = load_subscription_serials(args.serials_json, args.max_serials)
+        return expand_subscription_topics(topic_templates, serials), serials
+
+    def sync_subscriptions(force: bool = False) -> None:
+        nonlocal subscribed_topics, last_seen_serials, waiting_for_serials_printed
+        topics, serials = desired_topics()
+        if args.serials_json and serials != last_seen_serials:
+            last_seen_serials = list(serials)
+            if serials:
+                print(f"ui serial subscriptions: {', '.join(serials)}")
+            elif not waiting_for_serials_printed:
+                print(f"waiting for UI serial subscriptions in {args.serials_json}")
+                waiting_for_serials_printed = True
+        if force:
+            subscribed_topics = set()
+        for topic in sorted(topics - subscribed_topics):
+            client.subscribe(topic, qos=args.qos)
+            print(f"  subscribed: {topic}")
+        for topic in sorted(subscribed_topics - topics):
+            client.unsubscribe(topic)
+            print(f"  unsubscribed: {topic}")
+        subscribed_topics = topics
+
     def on_connect(client, _userdata, _flags, reason_code, _properties=None):
         is_failure = getattr(reason_code, "is_failure", None)
         connected = (not is_failure) if isinstance(is_failure, bool) else False
@@ -1217,9 +1434,7 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
                 connected = str(reason_code).lower() in {"0", "success"}
         if connected:
             print(f"connected broker={args.broker}:{args.port} client_id={client_id}")
-            for topic in sub_topics:
-                client.subscribe(topic, qos=args.qos)
-                print(f"  subscribed: {topic}")
+            sync_subscriptions(force=True)
         else:
             print(f"mqtt connect failed reason={reason_code}", file=sys.stderr)
 
@@ -1227,8 +1442,9 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
         topic = message.topic
         tid = topic_id(topic)
 
-        # SQ diagnostic streams: extract diagnose.sq and dt, update the tracker,
-        # then return without analyzing — these are not waveforms.
+        # Diagnostic streams are not waveforms. Cache their SQ/dt metadata for
+        # future sig frames, and emit a pub-only live record for devices that do
+        # not publish meter/sig waveform captures.
         if topic.startswith("meter/pub/") or topic.startswith("processed/meter/"):
             try:
                 parsed = json.loads(message.payload.decode("utf-8"))
@@ -1239,6 +1455,53 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
             pub_meta = extract_pub_flow_metadata(parsed)
             if sq is not None or dt_ns is not None or pub_meta:
                 sq_tracker.update(tid, sq, dt_ns, pub_meta)
+            if pub_meta:
+                now_wall = time.time()
+                first_pub_seen_wall_ts.setdefault(tid, now_wall)
+                recent_sig_age_s = now_wall - last_sig_seen_wall_ts.get(tid, 0.0)
+                if recent_sig_age_s <= PUB_ONLY_SIG_GRACE_S:
+                    return
+                if tid not in last_sig_seen_wall_ts and now_wall - first_pub_seen_wall_ts[tid] < PUB_ONLY_INITIAL_WAIT_S:
+                    return
+                result = build_pub_only_record(
+                    tid,
+                    pub_meta,
+                    analyzer,
+                    sq_tracker,
+                    args.thr_poor,
+                    args.thr_fair,
+                )
+                write_jsonl(args.log_jsonl, result)
+                if args.publish_topic:
+                    client.publish(args.publish_topic, json.dumps(result), qos=args.qos)
+
+                last_pub_only_log = pub_only_last_console_ts.get(tid, 0.0)
+                if args.log_mode == "every" or now_wall - last_pub_only_log >= args.heartbeat_s:
+                    pub_only_last_console_ts[tid] = now_wall
+                    sq_disp = f"{result['sq']:.0f}" if isinstance(result["sq"], (int, float)) else "  —"
+                    fs_disp = (
+                        f"{result['pub_fs_mps']:.6f}m/s"
+                        if isinstance(result["pub_fs_mps"], (int, float))
+                        else "—m/s"
+                    )
+                    fr_disp = (
+                        f"{result['pub_fr_m3h']:.6f}m3/h"
+                        if isinstance(result["pub_fr_m3h"], (int, float))
+                        else "—m3/h"
+                    )
+                    temp_disp = (
+                        f"{result['onboard_temperature_c']:.2f}C"
+                        if isinstance(result["onboard_temperature_c"], (int, float))
+                        else "—C"
+                    )
+                    print(
+                        f"{result['timestamp']} pub-only sn={tid} sq={sq_disp} "
+                        f"sq_label={result['sq_label'] or 'unknown':<7} fs={fs_disp} "
+                        f"fr={fr_disp} ots={temp_disp} "
+                        f"conf={result['measurement_confidence']:.2f} "
+                        f"health={result['flow_meter_health']['score']:.1f}/"
+                        f"{result['flow_meter_health']['label']}"
+                    )
             return
 
         # Otherwise treat as a waveform.
@@ -1251,6 +1514,7 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
         metadata.setdefault("topic", topic)
         metadata.setdefault("serial", tid)
         metadata.setdefault("timestamp", time.strftime("%Y-%m-%dT%H:%M:%S.000Z", time.gmtime()))
+        last_sig_seen_wall_ts[tid] = time.time()
 
         sq, age = sq_tracker.get(tid)
         if sq is not None:
@@ -1379,7 +1643,12 @@ def run_mqtt(args: argparse.Namespace, analyzer: AdaptiveAnalyzer, csv_writer: G
             "For offline smoke tests, run with --stdin and feed JSON waveform payloads."
         ) from exc
     try:
-        client.loop_forever()
+        last_sync_at = 0.0
+        while True:
+            client.loop(timeout=1.0)
+            if args.serials_json and (time.time() - last_sync_at) >= args.serials_poll_s:
+                sync_subscriptions()
+                last_sync_at = time.time()
     finally:
         save_model(args.adapted_model_out, analyzer.snapshot_for_save())
 
@@ -1531,6 +1800,15 @@ def build_parser() -> argparse.ArgumentParser:
                         help="MQTT topic carrying diagnose.sq from devices.")
     parser.add_argument("--processed-topic", default="processed/meter/+",
                         help="MQTT topic carrying processed meter messages with diagnose.sq.")
+    parser.add_argument(
+        "--serials-json",
+        type=Path,
+        default=None,
+        help="Optional UI-managed JSON file with a serials array. When present, {serial} "
+             "or '+' topic segments are expanded from this file and resynced live.",
+    )
+    parser.add_argument("--serials-poll-s", type=float, default=2.0)
+    parser.add_argument("--max-serials", type=int, default=MAX_DYNAMIC_SERIALS)
     parser.add_argument("--thr-poor", type=float, default=DEFAULT_THR_POOR,
                         help=f"sq < this → label 'poor' (default {DEFAULT_THR_POOR}; matches GUI).")
     parser.add_argument("--thr-fair", type=float, default=DEFAULT_THR_FAIR,

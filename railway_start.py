@@ -18,7 +18,6 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parent
-DEFAULT_SERIAL = "BB8100017587"
 
 
 def env_bool(name: str, default: bool) -> bool:
@@ -40,19 +39,16 @@ def data_dir() -> Path:
     return path
 
 
-def topic_env(name: str, default: str, serial: str) -> str:
-    return os.environ.get(name, default).format(serial=serial)
-
-
-def analyzer_command(data: Path, serial: str) -> list[str]:
+def analyzer_command(data: Path) -> list[str]:
     log_path = env_path("ANALYSIS_LOG_PATH", data / "live_mqtt_analysis.jsonl")
     events_path = env_path("EVENTS_LOG_PATH", data / "live_mqtt_events.jsonl")
     csv_path = env_path("WAVEFORM_CSV_PATH", data / "live_mqtt_waveforms.csv")
+    serials_path = env_path("METER_SERIALS_PATH", data / "live_meter_serials.json")
     adapted_model = env_path("ADAPTED_MODEL_PATH", data / "live_adaptive_meter_model.json")
     model_default = adapted_model if adapted_model.exists() else ROOT / "oneclass_meter_model_combined.json"
     model_path = env_path("METER_MODEL_PATH", model_default)
 
-    for path in (log_path, events_path, csv_path, adapted_model):
+    for path in (log_path, events_path, csv_path, serials_path, adapted_model):
         path.parent.mkdir(parents=True, exist_ok=True)
 
     cmd = [
@@ -65,11 +61,13 @@ def analyzer_command(data: Path, serial: str) -> list[str]:
         "--client-id",
         os.environ.get("MQTT_CLIENT_ID", "lens_data_{uuid}"),
         "--sig-topic",
-        topic_env("MQTT_SIG_TOPIC", "meter/sig/+", serial),
+        os.environ.get("MQTT_SIG_TOPIC", "meter/sig/{serial}"),
         "--pub-topic",
-        topic_env("MQTT_PUB_TOPIC", "meter/pub/+", serial),
+        os.environ.get("MQTT_PUB_TOPIC", "meter/pub/{serial}"),
         "--processed-topic",
-        topic_env("MQTT_PROCESSED_TOPIC", "", serial),
+        os.environ.get("MQTT_PROCESSED_TOPIC", ""),
+        "--serials-json",
+        str(serials_path),
         "--model",
         str(model_path),
         "--adapted-model-out",
@@ -114,16 +112,18 @@ def analyzer_command(data: Path, serial: str) -> list[str]:
     print(f"  log={log_path}")
     print(f"  events={events_path}")
     print(f"  waveform_csv={csv_path}")
+    print(f"  serials={serials_path}")
     print(f"  model={model_path}")
     print(f"  adapted_model={adapted_model}")
     return cmd
 
 
-def server_command(data: Path, serial: str) -> list[str]:
+def server_command(data: Path) -> list[str]:
     port = os.environ.get("PORT", "8765")
     log_path = env_path("ANALYSIS_LOG_PATH", data / "live_mqtt_analysis.jsonl")
     events_path = env_path("EVENTS_LOG_PATH", data / "live_mqtt_events.jsonl")
     csv_path = env_path("WAVEFORM_CSV_PATH", data / "live_mqtt_waveforms.csv")
+    serials_path = env_path("METER_SERIALS_PATH", data / "live_meter_serials.json")
     return [
         sys.executable,
         str(ROOT / "prototype" / "live_server.py"),
@@ -137,6 +137,8 @@ def server_command(data: Path, serial: str) -> list[str]:
         str(events_path),
         "--waveform-csv",
         str(csv_path),
+        "--serials-json",
+        str(serials_path),
         "--app-token",
         os.environ.get("APP_TOKEN", ""),
     ]
@@ -156,22 +158,21 @@ def terminate(children: list[subprocess.Popen[bytes]]) -> None:
 
 
 def main() -> int:
-    serial = os.environ.get("METER_SERIAL", DEFAULT_SERIAL)
     data = data_dir()
     children: list[subprocess.Popen[bytes]] = []
 
     env = os.environ.copy()
     env.setdefault("PYTHONUNBUFFERED", "1")
 
-    print(f"Railway prototype starting serial={serial} data_dir={data}")
+    print(f"Railway prototype starting data_dir={data}; meter subscriptions are managed by the UI.")
 
     if env_bool("START_MQTT_ANALYZER", True):
-        analyzer = subprocess.Popen(analyzer_command(data, serial), cwd=ROOT, env=env)
+        analyzer = subprocess.Popen(analyzer_command(data), cwd=ROOT, env=env)
         children.append(analyzer)
     else:
         print("START_MQTT_ANALYZER is disabled; serving UI/SSE only.")
 
-    server = subprocess.Popen(server_command(data, serial), cwd=ROOT, env=env)
+    server = subprocess.Popen(server_command(data), cwd=ROOT, env=env)
     children.append(server)
 
     def handle_signal(_signum: int, _frame: object) -> None:
