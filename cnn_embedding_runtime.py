@@ -15,7 +15,14 @@ class CnnEmbeddingScorer:
     without deep-learning dependencies unless ``--cnn-model`` is supplied.
     """
 
-    def __init__(self, model_path: Path, *, device: str = "auto", top_k: int = 3) -> None:
+    def __init__(
+        self,
+        model_path: Path,
+        *,
+        device: str = "auto",
+        top_k: int = 3,
+        fallback: str = "cpu",
+    ) -> None:
         import numpy as np  # noqa: PLC0415
         import torch  # noqa: PLC0415
 
@@ -23,7 +30,9 @@ class CnnEmbeddingScorer:
         self.torch = torch
         self.model_path = Path(model_path)
         self.top_k = max(1, int(top_k))
-        self.device = self._choose_device(device)
+        self.requested_device = str(device or "auto")
+        self.fallback = str(fallback or "cpu").lower()
+        self.device, self.device_fallback_reason = self._choose_device(self.requested_device)
         checkpoint = self._load_checkpoint(self.model_path)
         self.config = checkpoint["config"]
 
@@ -52,14 +61,25 @@ class CnnEmbeddingScorer:
         torch = self.torch
         if raw != "auto":
             requested = torch.device(raw)
-            if requested.type == "mps" and not torch.backends.mps.is_available():
-                raise RuntimeError("Requested --cnn-device mps, but torch MPS is not available.")
-            return requested
+            if requested.type == "cuda" and not torch.cuda.is_available():
+                return self._fallback_device("Requested --cnn-device cuda, but torch CUDA is not available.")
+            mps_backend = getattr(torch.backends, "mps", None)
+            if requested.type == "mps" and (mps_backend is None or not mps_backend.is_available()):
+                return self._fallback_device("Requested --cnn-device mps, but torch MPS is not available.")
+            return requested, None
         if torch.cuda.is_available():
-            return torch.device("cuda")
+            return torch.device("cuda"), None
         if getattr(torch.backends, "mps", None) is not None and torch.backends.mps.is_available():
-            return torch.device("mps")
-        return torch.device("cpu")
+            return torch.device("mps"), None
+        return torch.device("cpu"), None
+
+    def _fallback_device(self, reason: str):
+        torch = self.torch
+        if self.fallback in {"cpu", "auto"}:
+            return torch.device("cpu"), f"{reason} Falling back to cpu."
+        if self.fallback == "skip":
+            raise RuntimeError(f"{reason} CNN scoring skipped by fallback policy.")
+        raise RuntimeError(reason)
 
     def _load_checkpoint(self, path: Path) -> dict[str, Any]:
         torch = self.torch
@@ -69,42 +89,52 @@ class CnnEmbeddingScorer:
             return torch.load(path, map_location="cpu")
 
     def score(self, samples: list[float]) -> dict[str, Any]:
+        return self.score_many([samples])[0]
+
+    def score_many(self, samples_batch: list[list[float]]) -> list[dict[str, Any]]:
         np = self.np
         torch = self.torch
-        values = np.asarray(samples, dtype="float32")
-        normalized = self._preprocess(values)
+        normalized_rows = [
+            self._preprocess(np.asarray(samples, dtype="float32"))
+            for samples in samples_batch
+        ]
+        normalized = np.stack(normalized_rows, axis=0)
         with torch.no_grad():
-            tensor = torch.from_numpy(normalized[None, None, :]).to(self.device)
+            tensor = torch.from_numpy(normalized[:, None, :]).to(self.device)
             reconstruction, embedding = self.model(tensor)
-            mse = torch.mean((reconstruction - tensor) ** 2, dim=(1, 2)).cpu().item()
-            embedding_np = embedding.cpu().numpy().astype("float64")[0]
+            mse_values = torch.mean((reconstruction - tensor) ** 2, dim=(1, 2)).cpu().numpy()
+            embedding_rows = embedding.cpu().numpy().astype("float64")
 
-        metric_embedding = self._metric_embedding(embedding_np)
-        neighbors = self._nearest_neighbors(metric_embedding)
-        nearest_distance = neighbors[0]["embedding_distance"] if neighbors else None
-        out = {
-            "model": str(self.model_path),
-            "device": str(self.device),
-            "input_mode": self.config.get("input_mode", "full"),
-            "embedding_dim": int(self.config["embedding_dim"]),
-            "reconstruction_mse": float(mse),
-            "reconstruction_thresholds": self.config.get("reconstruction_thresholds", {}),
-            "nearest_embedding_distance": nearest_distance,
-            "nearest_embedding_distance_thresholds": self.config.get(
-                "nearest_embedding_distance_thresholds", {}
-            ),
-            "nearest_similarity": (
-                float(1.0 / (1.0 + nearest_distance))
-                if nearest_distance is not None
-                else None
-            ),
-            "nearest_neighbors": neighbors,
-            "reference_count": (
-                int(len(self.reference_metric_embeddings))
-                if self.reference_metric_embeddings is not None
-                else 0
-            ),
-        }
+        out: list[dict[str, Any]] = []
+        for mse, embedding_np in zip(mse_values, embedding_rows):
+            metric_embedding = self._metric_embedding(embedding_np)
+            neighbors = self._nearest_neighbors(metric_embedding)
+            nearest_distance = neighbors[0]["embedding_distance"] if neighbors else None
+            out.append({
+                "model": str(self.model_path),
+                "device": str(self.device),
+                "requested_device": self.requested_device,
+                "device_fallback_reason": self.device_fallback_reason,
+                "input_mode": self.config.get("input_mode", "full"),
+                "embedding_dim": int(self.config["embedding_dim"]),
+                "reconstruction_mse": float(mse),
+                "reconstruction_thresholds": self.config.get("reconstruction_thresholds", {}),
+                "nearest_embedding_distance": nearest_distance,
+                "nearest_embedding_distance_thresholds": self.config.get(
+                    "nearest_embedding_distance_thresholds", {}
+                ),
+                "nearest_similarity": (
+                    float(1.0 / (1.0 + nearest_distance))
+                    if nearest_distance is not None
+                    else None
+                ),
+                "nearest_neighbors": neighbors,
+                "reference_count": (
+                    int(len(self.reference_metric_embeddings))
+                    if self.reference_metric_embeddings is not None
+                    else 0
+                ),
+            })
         return out
 
     def _preprocess(self, values):

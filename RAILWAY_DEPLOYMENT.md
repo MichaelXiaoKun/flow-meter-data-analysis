@@ -37,6 +37,79 @@ SELF_TRAIN=1
 ENABLE_CNN=0
 ```
 
+CNN/GPU scoring is optional and runs outside the live ingest path. Leave
+`ENABLE_CNN=0` for the stable default. To enable async CNN scoring, provide a
+checkpoint and choose a device:
+
+```bash
+ENABLE_CNN=1
+CNN_MODEL_PATH=/app/cnn_autoencoder_model.pt
+CNN_DEVICE=cpu          # cpu, cuda, mps, or auto
+CNN_MODE=async
+CNN_FALLBACK=cpu        # cpu, skip, or error if the requested device is unavailable
+CNN_BATCH_SIZE=8
+CNN_QUEUE_SIZE=512
+CNN_FLUSH_MS=100
+CNN_TOP_K=3
+CNN_HEALTH_WEIGHT=0
+```
+
+With `CNN_DEVICE=cuda`, the worker uses GPU when PyTorch can see CUDA. If CUDA
+is unavailable, the default `CNN_FALLBACK=cpu` keeps the 24-hour UI and MQTT
+ingest running and logs the fallback decision. Async CNN results are written
+back to `meter_frames.cnn_analysis` when Postgres is enabled; latest-frame UI
+updates do not wait for CNN scoring.
+
+Local Phase 4 smoke test:
+
+```bash
+python3 phase4_cnn_smoke.py
+```
+
+On a non-CUDA machine, this should still pass and report a CUDA request falling
+back to CPU. On a GPU Railway service, the same smoke should report
+`active: cuda` when `CNN_DEVICE=cuda` and a compatible PyTorch/CUDA runtime are
+available.
+
+For 24-hour history APIs, attach Railway Postgres and expose its connection
+string as:
+
+```bash
+DATABASE_URL=<railway-postgres-connection-url>
+SERIES_DEFAULT_RANGE=24h
+SERIES_MAX_POINTS=1600
+DB_WRITE_BATCH_SIZE=100
+DB_WRITE_FLUSH_MS=1000
+```
+
+When `DATABASE_URL` is not set, the API endpoints remain available but read
+from the existing JSONL debug logs instead of Postgres.
+
+The analyzer now computes display-ready zero-flow fields in Python before data
+is written to JSONL/Postgres. These optional environment variables tune the
+backend tracker and default to the prototype UI values:
+
+```bash
+ZERO_TRACKER_PIPE_OD_MM=26.67
+ZERO_TRACKER_PIPE_WALL_MM=2.87
+ZERO_TRACKER_DEADBAND_M3H=0.030
+ZERO_TRACKER_TEMP_COEFF_FS=0.0020
+ZERO_TRACKER_ALPHA=0.045
+ZERO_TRACKER_ALERT_THRESHOLD=0.70
+ZERO_TRACKER_SUPPRESS=1
+ZERO_TRACKER_FEEDBACK=1
+ZERO_TRACKER_SPLIT_COOLING=1
+```
+
+The API contract is also available as a standalone FastAPI app:
+
+```bash
+uvicorn web_api:app --host 0.0.0.0 --port $PORT
+```
+
+The current `railway_start.py` still uses `prototype/live_server.py` so the
+static UI and SSE stream remain unchanged while the FastAPI app is tested.
+
 The topic values above are templates. The browser UI is the device selector:
 add up to 10 serial numbers in the left rail and click `Connect live` for the
 meters you want active. The server writes those connected UI serials into
@@ -112,15 +185,20 @@ Without a volume, these files are written to `/tmp/flow-meter-data` and may be
 lost on restart.
 
 The browser UI only reconnects on page load for serial numbers that were
-previously connected. It asks `/stream` for the latest 1200 analysis frames,
-then continues with live SSE frames. A browser refresh only restarts the browser
-connection; the Railway analyzer process keeps ingesting MQTT for the connected
-UI serials listed in `live_meter_serials.json`.
+previously connected. It first loads bounded 24-hour history from `/series`,
+then opens `/stream` with backlog disabled and consumes only new SSE frames. A
+browser refresh only restarts the browser connection; the Railway analyzer
+process keeps ingesting MQTT for the connected UI serials listed in
+`live_meter_serials.json`.
 
 ## Useful endpoints
 
 - `/temperature_zero_flow_prototype.html` - main UI.
-- `/stream?serial=BB8100017587&backlog=300` - Server-Sent Events.
+- `/stream?serial=BB8100017587&backlog=0` - latest-only Server-Sent Events.
+- `/api/meters/BB8100017587/latest` - newest analysis frame.
+- `/api/meters/BB8100017587/series?range=24h&max_points=1600` - bounded 24h series.
+- `/api/meters/BB8100017587/events?range=24h` - recent event history.
+- `/api/waveforms/<waveform_id>` - single waveform detail when Postgres is enabled.
 - `/waveform.csv?serial=BB8100017587` - waveform CSV used by the UI.
 - `/meters` - UI-managed list of serials the MQTT analyzer should subscribe to.
 - `POST /clear-data?serial=BB8100017587` - remove that serial's file-backed

@@ -122,10 +122,26 @@ def analyzer_command(data: Path) -> list[str]:
                 str(cnn_model),
                 "--cnn-device",
                 env_str("CNN_DEVICE", "cpu"),
+                "--cnn-mode",
+                env_str("CNN_MODE", "async"),
+                "--cnn-fallback",
+                env_str("CNN_FALLBACK", "cpu"),
+                "--cnn-batch-size",
+                env_str("CNN_BATCH_SIZE", "8"),
+                "--cnn-queue-size",
+                env_str("CNN_QUEUE_SIZE", "512"),
+                "--cnn-flush-ms",
+                env_str("CNN_FLUSH_MS", "100"),
+                "--cnn-top-k",
+                env_str("CNN_TOP_K", "3"),
                 "--cnn-health-weight",
                 env_str("CNN_HEALTH_WEIGHT", "0"),
             ]
         )
+    elif env_bool("ENABLE_CNN", False):
+        print(f"ENABLE_CNN=1 but CNN model was not found at {cnn_model}; continuing without CNN.")
+    else:
+        print("CNN scoring disabled by ENABLE_CNN=0.")
 
     print("Analyzer output:")
     print(f"  log={log_path}")

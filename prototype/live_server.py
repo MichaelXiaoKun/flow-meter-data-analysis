@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import sys
 import time
 from collections import deque
@@ -24,6 +25,12 @@ ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
 MAX_METERS = 10
 DEFAULT_WAVEFORM_LIMIT = 240
+DEFAULT_SERIES_MAX_POINTS = 1600
+
+if str(REPO) not in sys.path:
+    sys.path.insert(0, str(REPO))
+
+from meter_data_store import MeterDataQuery, parse_range_seconds  # noqa: E402
 
 
 def iter_backlog(path: Path, *, serial: str | None, limit: int) -> list[dict]:
@@ -205,6 +212,12 @@ class LiveHandler(SimpleHTTPRequestHandler):
                 return
             self.status()
             return
+        if parsed.path.startswith("/api/"):
+            if not self.is_authorized(parsed.query):
+                self.unauthorized()
+                return
+            self.api_get(parsed.path, parsed.query)
+            return
         if parsed.path == "/meters":
             if not self.is_authorized(parsed.query):
                 self.unauthorized()
@@ -233,6 +246,15 @@ class LiveHandler(SimpleHTTPRequestHandler):
         body = b'{"ok":true}\n'
         self.send_response(HTTPStatus.OK)
         self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def send_json(self, payload: dict, status: HTTPStatus = HTTPStatus.OK) -> None:
+        body = json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Cache-Control", "no-store")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
@@ -270,6 +292,7 @@ class LiveHandler(SimpleHTTPRequestHandler):
                 "events_log_exists": self.server.events_log_path.exists(),  # type: ignore[attr-defined]
                 "serials_path": str(self.server.serials_path),  # type: ignore[attr-defined]
                 "subscribed_serials": read_serials_file(self.server.serials_path),  # type: ignore[attr-defined]
+                "database_enabled": bool(getattr(self.server, "database_url", "")),
             },
             indent=2,
         ).encode("utf-8")
@@ -278,6 +301,76 @@ class LiveHandler(SimpleHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def api_query(self) -> MeterDataQuery:
+        return MeterDataQuery(
+            database_url=getattr(self.server, "database_url", ""),  # type: ignore[attr-defined]
+            log_path=self.server.log_path,  # type: ignore[attr-defined]
+            events_path=self.server.events_log_path,  # type: ignore[attr-defined]
+        )
+
+    def api_get(self, path: str, query: str) -> None:
+        parts = [part for part in path.strip("/").split("/") if part]
+        params = parse_qs(query)
+        api = self.api_query()
+
+        if len(parts) == 4 and parts[:2] == ["api", "meters"]:
+            serial = normalize_serial(parts[2])
+            action = parts[3]
+            if not serial:
+                self.send_json({"ok": False, "error": "serial required"}, HTTPStatus.BAD_REQUEST)
+                return
+            if action == "latest":
+                self.send_json({"ok": True, "serial": serial, "frame": api.latest(serial)})
+                return
+            if action == "series":
+                range_raw = params.get("range", [os.environ.get("SERIES_DEFAULT_RANGE", "24h")])[0]
+                range_seconds = parse_range_seconds(range_raw)
+                try:
+                    max_points = int(params.get("max_points", [os.environ.get("SERIES_MAX_POINTS", str(DEFAULT_SERIES_MAX_POINTS))])[0])
+                except ValueError:
+                    max_points = DEFAULT_SERIES_MAX_POINTS
+                max_points = max(1, min(max_points, 5000))
+                points = api.series(serial, range_seconds, max_points)
+                self.send_json(
+                    {
+                        "ok": True,
+                        "serial": serial,
+                        "range": range_raw,
+                        "range_seconds": range_seconds,
+                        "max_points": max_points,
+                        "points": points,
+                    }
+                )
+                return
+            if action == "events":
+                range_raw = params.get("range", [os.environ.get("SERIES_DEFAULT_RANGE", "24h")])[0]
+                range_seconds = parse_range_seconds(range_raw)
+                self.send_json(
+                    {
+                        "ok": True,
+                        "serial": serial,
+                        "range": range_raw,
+                        "range_seconds": range_seconds,
+                        "events": api.events(serial, range_seconds),
+                    }
+                )
+                return
+
+        if len(parts) == 3 and parts[:2] == ["api", "waveforms"]:
+            try:
+                waveform_id = int(parts[2])
+            except ValueError:
+                self.send_json({"ok": False, "error": "invalid waveform id"}, HTTPStatus.BAD_REQUEST)
+                return
+            waveform = api.waveform(waveform_id)
+            if waveform is None:
+                self.send_json({"ok": False, "error": "waveform not found"}, HTTPStatus.NOT_FOUND)
+                return
+            self.send_json({"ok": True, "waveform": waveform})
+            return
+
+        self.send_json({"ok": False, "error": "api endpoint not found"}, HTTPStatus.NOT_FOUND)
 
     def meters(self) -> None:
         serials = read_serials_file(self.server.serials_path)  # type: ignore[attr-defined]
@@ -481,11 +574,13 @@ def main() -> None:
     server.waveform_csv_path = args.waveform_csv.resolve()  # type: ignore[attr-defined]
     server.serials_path = args.serials_json.resolve()  # type: ignore[attr-defined]
     server.app_token = args.app_token  # type: ignore[attr-defined]
+    server.database_url = os.environ.get("DATABASE_URL", "").strip()  # type: ignore[attr-defined]
     print(f"Serving prototype: http://{args.host}:{args.port}/temperature_zero_flow_prototype.html")
     print(f"Streaming JSONL:   {server.log_path}")
     print(f"Events JSONL:      {server.events_log_path}")
     print(f"Waveform CSV:      {server.waveform_csv_path}")
     print(f"Meter serials:     {server.serials_path}")
+    print(f"Database:          {'enabled' if server.database_url else 'disabled'}")
     print(f"Data auth:         {'enabled' if args.app_token else 'disabled'}")
     server.serve_forever()
 
